@@ -110,6 +110,54 @@ def select_build(fname: str) -> List[str]:
     return files
 
 
+def copy_files(fname: Union[str, List[str]], dest_dir: str):
+    """
+    Copies file(s) to the provided destination.
+
+    :param fname: The file(s) to be copied.
+    :param dest_dir: The location where the file(s) will be copied to.
+    :return: True if the operation was successful, otherwise false.
+    """
+    if isinstance(fname, List):
+        for file in fname:
+            head_tail = os.path.split(file)
+            dest = os.path.join(dest_dir, head_tail[1])
+            __copy(file, dest)
+    else:
+        head_tail = os.path.split(fname)
+        dest = os.path.join(dest_dir, head_tail[1])
+        __copy(fname, dest)
+
+
+def __copy(src: str, dst: str):
+    # https://stackoverflow.com/questions/22078621/python-how-to-copy-files-fast
+    # shutil library reported to be slow for windows based system.
+    try:
+        O_BINARY = os.O_BINARY
+    except:
+        O_BINARY = 0
+    READ_FLAGS = os.O_RDONLY | O_BINARY
+    WRITE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | O_BINARY
+    BUFFER_SIZE = 128 * 1024
+    try:
+        fin = os.open(src, READ_FLAGS)
+        stat = os.fstat(fin)
+        fout = os.open(dst, WRITE_FLAGS, stat.st_mode)
+        for x in iter(lambda: os.read(fin, BUFFER_SIZE), ""):
+            os.write(fout, x)
+    except:
+        print("Copy failed for %s!" % file)
+    finally:
+        try:
+            os.close(fin)
+        except:
+            pass
+        try:
+            os.close(fout)
+        except:
+            pass
+
+
 # TESTING
 test_file = get_config()
 print("Test file:", test_file)
