@@ -17,6 +17,7 @@ test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
               "host_2": "test_2",
               "host_3": "test_3",
               "host_4": "test_4",
+              "host_5_does_not_exist": "does_not_exist",
               "guide": "test_guide_directory"}
 
 
@@ -33,9 +34,11 @@ def create_config(absolute_path: str,
     """
     print("Creating base config file.")
 
+    # Use default dictionary if none is given.
     if configuration is None:
         configuration = base_paths
 
+    # Create the directories if it does not exist.
     if not Path(absolute_path).exists():
         os.makedirs(absolute_path)
     config = configparser.ConfigParser()
@@ -44,6 +47,7 @@ def create_config(absolute_path: str,
     # TODO: Remove this line!
     config["test_build"] = test_build
 
+    # Write the configuration into the file.
     with open(os.path.join(absolute_path, fname), "w") as config_file:
         config.write(config_file)
         config_file.close()
@@ -62,6 +66,7 @@ def get_config(fname: str = base_config) -> str:
     root_directory = str(os.path.join(home, "file-picker"))
     config_file = Path(str(os.path.join(root_directory, fname)))
 
+    # Create a new configuration file if it does not exist.
     if not config_file.exists():
         config_file = create_config(root_directory)
 
@@ -85,6 +90,7 @@ def select_build(fname: str) -> List[str]:
 
     index = None
 
+    # Get user's selection.
     while not index:
         index = int(input("Enter a build number: "))
         if index < len(sections) or index > len(sections):
@@ -95,20 +101,44 @@ def select_build(fname: str) -> List[str]:
     print("\nBuild", selection, "selected:")
     subsection = config[selection]
     files = []
+    skipped_files = []
 
+    # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
         print("\t", entry.ljust(20), "=", subsection[entry])
+
+        # The files are in a csv format while the guide will be a whole directory containing multiple documents.
         if "guide" not in entry:
             images = config[selection][entry].split(",")
             for image in images:
-                path = os.path.join(config["DEFAULT"][entry], image.strip())
-                files.append(path)
+                if config.has_option("DEFAULT", entry):
+                    path = os.path.join(config["DEFAULT"][entry], image.strip())
+                    files.append(path)
+                else:
+                    skipped_files.append({entry: config[selection][entry]})
         else:
-            path = os.path.join(config["DEFAULT"][entry], config[selection][entry])
-            files.append(path)
+            if config.has_option("DEFAULT", entry):
+                path = os.path.join(config["DEFAULT"][entry], config[selection][entry])
+                files.append(path)
+            else:
+                skipped_files.append({entry: config[selection][entry]})
+
+    if skipped_files:
+        print("\n*WARNING* Path does not exist in \"DEFAULT\" for the following file(s), and has been skipped:")
+        for entry in skipped_files:
+            print("\t", entry)
+        print("\n")
 
     return files
 
+
+def add_new_build():
+    """
+    Add a new build configuration.
+    """
+    # Get dict.
+    # Write into config file.
+    # Copy files into destination.
 
 def copy_files(fname: Union[str, List[str]], dest_dir: str):
     """
@@ -118,6 +148,10 @@ def copy_files(fname: Union[str, List[str]], dest_dir: str):
     :param dest_dir: The location where the file(s) will be copied to.
     :return: True if the operation was successful, otherwise false.
     """
+    # Create the directories if it does not exist.
+    if not Path(dest_dir).exists():
+        os.makedirs(dest_dir)
+
     if isinstance(fname, List):
         for file in fname:
             head_tail = os.path.split(file)
@@ -131,7 +165,7 @@ def copy_files(fname: Union[str, List[str]], dest_dir: str):
 
 def __copy(src: str, dst: str):
     # https://stackoverflow.com/questions/22078621/python-how-to-copy-files-fast
-    # shutil library reported to be slow for windows based system.
+    # shutil library reported to be slow for windows based system because of limited buffer size.
     try:
         O_BINARY = os.O_BINARY
     except:
@@ -146,7 +180,7 @@ def __copy(src: str, dst: str):
         for x in iter(lambda: os.read(fin, BUFFER_SIZE), ""):
             os.write(fout, x)
     except:
-        print("Copy failed for %s!" % file)
+        print("Copy failed for %s!" % src)
     finally:
         try:
             os.close(fin)
@@ -158,21 +192,23 @@ def __copy(src: str, dst: str):
             pass
 
 
-# TESTING
-test_file = get_config()
-print("Test file:", test_file)
-confirm = False
-while not confirm:
-    files = select_build(test_file)
-    selection = input("Enter 'y/Y' to confirm selection, otherwise 'n/N': ")
-    if selection in ["y", "Y"]:
-        confirm = True
-for file in files:
-    print(file)
-shutil.rmtree(str(os.path.join(home, "file-picker")))
+def main():
+    # TESTING
+    test_file = get_config()
+    print("Test file:", test_file)
+    confirm = False
+    while not confirm:
+        files = select_build(test_file)
+        selection = input("Enter 'y/Y' to confirm selection, otherwise 'n/N': ")
+        if selection in ["y", "Y"]:
+            confirm = True
+    for file in files:
+        print(file)
+    shutil.rmtree(str(os.path.join(home, "file-picker")))
 
 
-
+if __name__ == "__main__":
+    main()
 
 
 
