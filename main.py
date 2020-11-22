@@ -1,11 +1,12 @@
-import os
 import configparser
+import os
 import shutil
 from pathlib import Path
-from typing import Union, List
+from typing import Union, List, Dict
 
 base_config = "config.ini"
 home = str(os.path.expanduser("~"))
+root_directory = str(os.path.join(home, "file-picker"))
 base_paths = {"host_1": str(os.path.join(home, "host_1")),
               "host_2": str(os.path.join(home, "host_2")),
               "host_3": str(os.path.join(home, "host_3")),
@@ -23,7 +24,7 @@ test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
 
 def create_config(absolute_path: str,
                   fname: str = base_config,
-                  configuration: dict = None) -> str:
+                  configuration: Dict = None) -> str:
     """
     Creates a configuration file to be used.
 
@@ -56,19 +57,19 @@ def create_config(absolute_path: str,
     return os.path.join(absolute_path, fname)
 
 
-def get_config(fname: str = base_config) -> str:
+def get_config(absolute_path: str = root_directory, fname: str = base_config) -> str:
     """
     Retrieves the configuration file path needed.
 
+    :param absolute_path: The path to the configuration file.
     :param fname: The name of the configuration file.
     :return: The configuration file path.
     """
-    root_directory = str(os.path.join(home, "file-picker"))
-    config_file = Path(str(os.path.join(root_directory, fname)))
+    config_file = Path(str(os.path.join(absolute_path, fname)))
 
     # Create a new configuration file if it does not exist.
     if not config_file.exists():
-        config_file = create_config(root_directory)
+        config_file = create_config(absolute_path)
 
     return config_file
 
@@ -101,11 +102,14 @@ def select_build(fname: str) -> List[str]:
     print("\nBuild", selection, "selected:")
     subsection = config[selection]
     files = []
-    skipped_files = []
+    skipped_hosts = {}
 
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
-        print("\t", entry.ljust(20), "=", subsection[entry])
+        text = entry
+        if len(text) > 20:
+            text = entry[:17] + "..."
+        print("\t", text.ljust(20), "=", subsection[entry])
 
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
         if "guide" not in entry:
@@ -115,30 +119,102 @@ def select_build(fname: str) -> List[str]:
                     path = os.path.join(config["DEFAULT"][entry], image.strip())
                     files.append(path)
                 else:
-                    skipped_files.append({entry: config[selection][entry]})
+                    skipped_hosts[entry] = config[selection][entry]
         else:
             if config.has_option("DEFAULT", entry):
                 path = os.path.join(config["DEFAULT"][entry], config[selection][entry])
                 files.append(path)
             else:
-                skipped_files.append({entry: config[selection][entry]})
+                skipped_hosts[entry] = config[selection][entry]
 
-    if skipped_files:
-        print("\n*WARNING* Path does not exist in \"DEFAULT\" for the following file(s), and has been skipped:")
-        for entry in skipped_files:
-            print("\t", entry)
+    if skipped_hosts:
+        print("\n*WARNING* Path does not exist in \"DEFAULT\" for the following host(s), and has been skipped:")
+        for entry in skipped_hosts:
+            text = entry
+            if len(text) > 20:
+                text = entry[:17] + "..."
+            print("\t", text.ljust(20), "=", skipped_hosts[entry])
         print("\n")
 
     return files
 
 
-def add_new_build():
+def add_new_build(fname: str = base_config):
     """
     Add a new build configuration.
+
+    :param fname: The configuration file to save into.
     """
-    # Get dict.
-    # Write into config file.
-    # Copy files into destination.
+    config = configparser.ConfigParser()
+    config.read(fname)
+
+    while True:
+        build_title = input("Please enter a build name: ")
+        if not config.has_section(build_title):
+            break
+        print("The build name already exist!")
+    build_options = __create_dict(fname)
+    print("Saving [%s] into the config file..." % build_title)
+    with open(os.path.join(fname), "a") as config_file:
+        config = configparser.ConfigParser()
+        config.add_section(build_title)
+        config[build_title] = build_options
+        config.write(config_file)
+        config_file.close()
+        print("New build configuration saved.")
+
+
+def __create_dict(fname: str) -> Dict[str, str]:
+    """
+    Create a dictionary from user's input.
+
+    :param fname: The configuration file to get the "DEFAULT" section for keys.
+    :return: A dictionary based on "DEFAULT" section and user's input.
+    """
+    config = configparser.ConfigParser()
+    config.read(fname)
+    default = config["DEFAULT"]
+    new_build = {}
+    confirm = False
+    print("\n*Enter either a comma separated value of multiple image files or a single image file*")
+
+    while not confirm:
+        for key in default:
+            if "guide" not in key:
+                entry = input("Please enter value for the host %s: " % key)
+                new_build[key] = entry
+        for entry in new_build:
+            text = entry
+            if len(text) > 20:
+                text = entry[:17] + "..."
+            print("\t", text.ljust(20), "=", new_build[entry])
+        print("\n")
+        selection = input("Enter 'y/Y' to confirm entries: ")
+        if selection in ["y", "Y"]:
+            confirm = True
+
+    return new_build
+
+
+def remove_build(fname: str):
+    # TODO
+    pass
+
+
+def edit_build(fname: str):
+    # TODO
+    pass
+
+
+def cherry_pick(fname: str):
+    # TODO: Allow user to pick a certain option from a section to copy.
+    pass
+
+
+def print_storage():
+    # TODO: display the tree of the "image repo" and its content.
+    pass
+
 
 def copy_files(fname: Union[str, List[str]], dest_dir: str):
     """
@@ -199,20 +275,14 @@ def main():
     confirm = False
     while not confirm:
         files = select_build(test_file)
-        selection = input("Enter 'y/Y' to confirm selection, otherwise 'n/N': ")
+        selection = input("Enter 'y/Y' to confirm selection: ")
         if selection in ["y", "Y"]:
             confirm = True
     for file in files:
         print(file)
+    # copy_files(files, str(os.path.join(home, "file-picker")))
     shutil.rmtree(str(os.path.join(home, "file-picker")))
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
