@@ -1,17 +1,18 @@
 import configparser
 import os
 import shutil
+import time
 from pathlib import Path
 from typing import Union, List, Dict
 
 base_config = "config.ini"
 home = str(os.path.expanduser("~"))
 root_directory = str(os.path.join(home, "file-picker"))
-base_paths = {"host_1": str(os.path.join(home, "host_1")),
-              "host_2": str(os.path.join(home, "host_2")),
-              "host_3": str(os.path.join(home, "host_3")),
-              "host_4": str(os.path.join(home, "host_4")),
-              "guide": str(os.path.join(home, "guide"))}
+base_paths = {"host_1": str(os.path.join(home, "file-picker", "host_1")),
+              "host_2": str(os.path.join(home, "file-picker", "host_2")),
+              "host_3": str(os.path.join(home, "file-picker", "host_3")),
+              "host_4": str(os.path.join(home, "file-picker", "host_4")),
+              "guide": str(os.path.join(home, "file-picker", "guide"))}
 
 # TODO: Remove this variable!
 test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
@@ -299,14 +300,17 @@ def __copy(src: str, dst: str):
     except:
         o_binary = 0
     read_flags = os.O_RDONLY | o_binary
-    write_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | O_BINARY
+    write_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | o_binary
     buffer_size = 128 * 1024
     try:
+        start_time = time.process_time()
         file_in = os.open(src, read_flags)
         stat = os.fstat(file_in)
         file_out = os.open(dst, write_flags, stat.st_mode)
-        for x in iter(lambda: os.read(file_in, buffer_size), ""):
+        for x in iter(lambda: os.read(file_in, buffer_size), b''):
             os.write(file_out, x)
+        end_time = time.process_time()
+        print("[%s] completed in: %s seconds." % (os.path.split(src)[1], round(end_time - start_time, 3)))
     except:
         # TODO: Catch an actual error type.
         print("Copy failed for %s!" % src)
@@ -340,9 +344,24 @@ def main():
                 build = select_build(test_file)
                 if build:
                     files = build_paths(test_file, build)
+                    destination = str(os.path.join(home, "file-picker", "test-destination"))
+                    if not Path(destination).exists():
+                        os.makedirs(destination)
+                    print("Creating fake files...")
                     for file in files:
-                        print(file)
-                    # copy_files(files, str(os.path.join(home, "file-picker")))
+                        if not Path(os.path.split(file)[0]).exists():
+                            os.makedirs(os.path.split(file)[0])
+                        with open(file, 'wb') as f:
+                            f.write(os.urandom(16 * 1024 * 1024)) # 16 MB fake files.
+                            # f.write(os.urandom(128 * 1024)) # 128 KB fake files.
+                            f.close()
+                    print("Copying the following files to %s:" % destination)
+                    for file in files:
+                        print("\t %s" % file)
+                    start_time = time.process_time()
+                    copy_files(files, destination)
+                    stop_time = time.process_time()
+                    print("Total time: %s seconds." % round(stop_time - start_time, 3))
             elif selection == 2:
                 remove_build(test_file)
             elif selection == 3:
@@ -355,7 +374,7 @@ def main():
                 pass
         except ValueError:
             pass
-    shutil.rmtree(str(os.path.join(home, "file-picker")))
+    shutil.rmtree(root_directory)
 
 
 if __name__ == "__main__":
