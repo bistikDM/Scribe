@@ -23,13 +23,13 @@ test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
 
 
 def create_config(absolute_path: str,
-                  fname: str = base_config,
+                  file_name: str = base_config,
                   configuration: Dict = None) -> str:
     """
     Creates a configuration file to be used.
 
     :param absolute_path: The location the file will be created.
-    :param fname: The name of the configuration file.
+    :param file_name: The name of the configuration file.
     :param configuration: The configuration to be entered into the file.
     :return: The newly created configuration file's path.
     """
@@ -49,23 +49,23 @@ def create_config(absolute_path: str,
     config["test_build"] = test_build
 
     # Write the configuration into the file.
-    with open(os.path.join(absolute_path, fname), "w") as config_file:
+    with open(os.path.join(absolute_path, file_name), "w") as config_file:
         config.write(config_file)
         config_file.close()
         print("Base config file created.")
 
-    return os.path.join(absolute_path, fname)
+    return os.path.join(absolute_path, file_name)
 
 
-def get_config(absolute_path: str = root_directory, fname: str = base_config) -> str:
+def get_config(absolute_path: str = root_directory, file_name: str = base_config) -> str:
     """
     Retrieves the configuration file path needed.
 
     :param absolute_path: The path to the configuration file.
-    :param fname: The name of the configuration file.
+    :param file_name: The name of the configuration file.
     :return: The configuration file path.
     """
-    config_file = Path(str(os.path.join(absolute_path, fname)))
+    config_file = Path(str(os.path.join(absolute_path, file_name)))
 
     # Create a new configuration file if it does not exist.
     if not config_file.exists():
@@ -74,58 +74,78 @@ def get_config(absolute_path: str = root_directory, fname: str = base_config) ->
     return config_file
 
 
-def select_build(fname: str) -> List[str]:
+def select_build(file_name: str) -> str:
     """
     Reads, display, then allow the selection of a specific build from the configuration file.
 
-    :param fname: The configuration file.
-    :return: A list of file paths for the associated build.
+    :param file_name: The configuration file.
+    :return: The selected build name, or None if no builds are available in the configuration file.
     """
     config = configparser.ConfigParser()
-    config.read(fname)
+    config.read(file_name)
     sections = config.sections()
-    print("Build list:")
-
-    for section in sections:
-        print("\t", str((sections.index(section) + 1)) + ").".ljust(5), section)
-
     index = None
+    selection = None
 
     # Get user's selection.
-    while not index:
-        index = int(input("Enter a build number: "))
-        if index < len(sections) or index > len(sections):
+    while True:
+        if len(sections) <= 0:
+            print("There are no builds saved in the configuration file!")
+            break
+        print("\nBuild list:")
+        for section in sections:
+            print("\t", str((sections.index(section) + 1)) + ").".ljust(5), section)
+        while not index:
+            try:
+                index = int(input("Enter a build number: "))
+                if index < len(sections) or index > len(sections):
+                    index = None
+                    print("Invalid selection!")
+            except ValueError:
+                # User entered a non-integer value, looping back.
+                pass
+        selection = sections[index - 1]
+        print("\nBuild [%s] selected:" % selection)
+        __print_options(config, selection)
+        confirm = input("Enter 'y/Y' to confirm selection: ")
+        if confirm in ["y", "Y"]:
+            break
+        else:
             index = None
-            print("Invalid selection!")
+    return selection
 
-    selection = sections[index - 1]
-    print("\nBuild", selection, "selected:")
-    subsection = config[selection]
+
+def build_paths(file_name: str, section: str) -> List[str]:
+    """
+    Build all the file paths for section based on the section's options.
+
+    :param file_name: The configuration file to use.
+    :param section: The build name to use.
+    :return: A list containing the absolute paths of all files described in the section's option.
+    """
+    config = configparser.ConfigParser()
+    config.read(file_name)
+    subsection = config[section]
     files = []
     skipped_hosts = {}
 
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
-        text = entry
-        if len(text) > 20:
-            text = entry[:17] + "..."
-        print("\t", text.ljust(20), "=", subsection[entry])
-
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
         if "guide" not in entry:
-            images = config[selection][entry].split(",")
+            images = config[section][entry].split(",")
             for image in images:
                 if config.has_option("DEFAULT", entry):
                     path = os.path.join(config["DEFAULT"][entry], image.strip())
                     files.append(path)
                 else:
-                    skipped_hosts[entry] = config[selection][entry]
+                    skipped_hosts[entry] = config[section][entry]
         else:
             if config.has_option("DEFAULT", entry):
-                path = os.path.join(config["DEFAULT"][entry], config[selection][entry])
+                path = os.path.join(config["DEFAULT"][entry], config[section][entry])
                 files.append(path)
             else:
-                skipped_hosts[entry] = config[selection][entry]
+                skipped_hosts[entry] = config[section][entry]
 
     if skipped_hosts:
         print("\n*WARNING* Path does not exist in \"DEFAULT\" for the following host(s), and has been skipped:")
@@ -134,28 +154,45 @@ def select_build(fname: str) -> List[str]:
             if len(text) > 20:
                 text = entry[:17] + "..."
             print("\t", text.ljust(20), "=", skipped_hosts[entry])
-        print("\n")
+        input("Press [Enter] key to acknowledge...")
 
     return files
 
 
-def add_new_build(fname: str = base_config):
+def __print_options(config: configparser.ConfigParser, section: str):
+    """
+    Helper method to display all of the options in a section.
+
+    :param config: The configuration file to use.
+    :param section: The build name to use.
+    """
+    subsection = config[section]
+
+    # Iterate through the entries and create a list that contains the absolute paths to all associated files.
+    for entry in subsection:
+        text = entry
+        if len(text) > 20:
+            text = entry[:17] + "..."
+        print("\t", text.ljust(20), "=", subsection[entry])
+
+
+def add_new_build(file_name: str):
     """
     Add a new build configuration.
 
-    :param fname: The configuration file to save into.
+    :param file_name: The configuration file to save into.
     """
     config = configparser.ConfigParser()
-    config.read(fname)
+    config.read(file_name)
 
     while True:
         build_title = input("Please enter a build name: ")
         if not config.has_section(build_title):
             break
         print("The build name already exist!")
-    build_options = __create_dict(fname)
+    build_options = __create_dict(file_name)
     print("Saving [%s] into the config file..." % build_title)
-    with open(os.path.join(fname), "a") as config_file:
+    with open(os.path.join(file_name), "a") as config_file:
         config = configparser.ConfigParser()
         config.add_section(build_title)
         config[build_title] = build_options
@@ -164,15 +201,15 @@ def add_new_build(fname: str = base_config):
         print("New build configuration saved.")
 
 
-def __create_dict(fname: str) -> Dict[str, str]:
+def __create_dict(file_name: str) -> Dict[str, str]:
     """
     Create a dictionary from user's input.
 
-    :param fname: The configuration file to get the "DEFAULT" section for keys.
+    :param file_name: The configuration file to get the "DEFAULT" section for keys.
     :return: A dictionary based on "DEFAULT" section and user's input.
     """
     config = configparser.ConfigParser()
-    config.read(fname)
+    config.read(file_name)
     default = config["DEFAULT"]
     new_build = {}
     confirm = False
@@ -196,17 +233,32 @@ def __create_dict(fname: str) -> Dict[str, str]:
     return new_build
 
 
-def remove_build(fname: str):
+def remove_build(file_name: str):
+    """
+    Remove a section (build) from the configuration file.
+
+    :param file_name: The configuration file to use.
+    """
+    config = configparser.ConfigParser()
+    config.read(file_name)
+    build = select_build(file_name)
+    confirm = input("Removing [%s] from the configuration file, enter the build name exactly to confirm: " % build)
+    if confirm.rstrip() == build:
+        config.remove_section(build)
+        with open(file_name, "w") as config_file:
+            config.write(config_file)
+            config_file.close()
+            print("Build [%s] has been removed from the configuration." % build)
+    else:
+        print("Aborting operation.")
+
+
+def edit_build(file_name: str):
     # TODO
     pass
 
 
-def edit_build(fname: str):
-    # TODO
-    pass
-
-
-def cherry_pick(fname: str):
+def cherry_pick(file_name: str):
     # TODO: Allow user to pick a certain option from a section to copy.
     pass
 
@@ -216,55 +268,58 @@ def print_storage():
     pass
 
 
-def copy_files(fname: Union[str, List[str]], dest_dir: str):
+def copy_files(file_name: Union[str, List[str]], destination_directory: str):
     """
     Copies file(s) to the provided destination.
 
-    :param fname: The file(s) to be copied.
-    :param dest_dir: The location where the file(s) will be copied to.
+    :param file_name: The file(s) to be copied.
+    :param destination_directory: The location where the file(s) will be copied to.
     :return: True if the operation was successful, otherwise false.
     """
     # Create the directories if it does not exist.
-    if not Path(dest_dir).exists():
-        os.makedirs(dest_dir)
+    if not Path(destination_directory).exists():
+        os.makedirs(destination_directory)
 
-    if isinstance(fname, List):
-        for file in fname:
+    if isinstance(file_name, List):
+        for file in file_name:
             head_tail = os.path.split(file)
-            dest = os.path.join(dest_dir, head_tail[1])
-            __copy(file, dest)
+            destination = os.path.join(destination_directory, head_tail[1])
+            __copy(file, destination)
     else:
-        head_tail = os.path.split(fname)
-        dest = os.path.join(dest_dir, head_tail[1])
-        __copy(fname, dest)
+        head_tail = os.path.split(file_name)
+        destination = os.path.join(destination_directory, head_tail[1])
+        __copy(file_name, destination)
 
 
 def __copy(src: str, dst: str):
     # https://stackoverflow.com/questions/22078621/python-how-to-copy-files-fast
     # shutil library reported to be slow for windows based system because of limited buffer size.
     try:
-        O_BINARY = os.O_BINARY
+        o_binary = os.O_BINARY
     except:
-        O_BINARY = 0
-    READ_FLAGS = os.O_RDONLY | O_BINARY
-    WRITE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | O_BINARY
-    BUFFER_SIZE = 128 * 1024
+        o_binary = 0
+    read_flags = os.O_RDONLY | o_binary
+    write_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | O_BINARY
+    buffer_size = 128 * 1024
     try:
-        fin = os.open(src, READ_FLAGS)
-        stat = os.fstat(fin)
-        fout = os.open(dst, WRITE_FLAGS, stat.st_mode)
-        for x in iter(lambda: os.read(fin, BUFFER_SIZE), ""):
-            os.write(fout, x)
+        file_in = os.open(src, read_flags)
+        stat = os.fstat(file_in)
+        file_out = os.open(dst, write_flags, stat.st_mode)
+        for x in iter(lambda: os.read(file_in, buffer_size), ""):
+            os.write(file_out, x)
     except:
+        # TODO: Catch an actual error type.
         print("Copy failed for %s!" % src)
     finally:
         try:
-            os.close(fin)
+            os.close(file_in)
         except:
+            # TODO: Catch an actual error type.
             pass
         try:
-            os.close(fout)
+            os.close(file_out)
         except:
+            # TODO: Catch an actual error type.
             pass
 
 
@@ -272,15 +327,34 @@ def main():
     # TESTING
     test_file = get_config()
     print("Test file:", test_file)
-    confirm = False
-    while not confirm:
-        files = select_build(test_file)
-        selection = input("Enter 'y/Y' to confirm selection: ")
-        if selection in ["y", "Y"]:
-            confirm = True
-    for file in files:
-        print(file)
-    # copy_files(files, str(os.path.join(home, "file-picker")))
+    while True:
+        print("***TEST MENU***")
+        print("\t1). Select a build.")
+        print("\t2). Remove a build.")
+        print("\t3). Add a build.")
+        print("\t4). Edit a build (Not implemented yet).")
+        print("\t0). Exit.")
+        try:
+            selection = int(input("Enter a number: "))
+            if selection == 1:
+                build = select_build(test_file)
+                if build:
+                    files = build_paths(test_file, build)
+                    for file in files:
+                        print(file)
+                    # copy_files(files, str(os.path.join(home, "file-picker")))
+            elif selection == 2:
+                remove_build(test_file)
+            elif selection == 3:
+                add_new_build(test_file)
+            elif selection == 4:
+                edit_build(test_file)
+            elif selection == 0:
+                break
+            else:
+                pass
+        except ValueError:
+            pass
     shutil.rmtree(str(os.path.join(home, "file-picker")))
 
 
