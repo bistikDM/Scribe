@@ -19,8 +19,7 @@ test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
               "host_2": "test_2",
               "host_3": "test_3",
               "host_4": "test_4",
-              "host_5_does_not_exist": "does_not_exist",
-              "guide": "test_guide_directory"}
+              "guide": "install, test, misc"}
 
 
 def create_config(absolute_path: str,
@@ -133,21 +132,13 @@ def build_paths(file_name: str, section: str) -> List[str]:
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
-        if "guide" not in entry:
-            images = config[section][entry].split(",")
-            for image in images:
-                if config.has_option("DEFAULT", entry):
-                    path = os.path.join(config["DEFAULT"][entry], image.strip())
-                    files.append(path)
-                else:
-                    skipped_hosts[entry] = config[section][entry]
-        else:
+        file_list = config[section][entry].split(",")
+        for file in file_list:
             if config.has_option("DEFAULT", entry):
-                path = os.path.join(config["DEFAULT"][entry], config[section][entry])
+                path = os.path.join(config["DEFAULT"][entry], file.strip())
                 files.append(path)
             else:
                 skipped_hosts[entry] = config[section][entry]
-
     if skipped_hosts:
         print("\n*WARNING* Path does not exist in \"DEFAULT\" for the following host(s), and has been skipped:")
         for entry in skipped_hosts:
@@ -214,13 +205,12 @@ def __create_dict(file_name: str) -> Dict[str, str]:
     default = config["DEFAULT"]
     new_build = {}
     confirm = False
-    print("\n*Enter either a comma separated value of multiple image files or a single image file*")
+    print("\n*Enter either a comma separated value of multiple files or a single file*")
 
     while not confirm:
         for key in default:
-            if "guide" not in key:
-                entry = input("Please enter value for the host %s: " % key)
-                new_build[key] = entry
+            entry = input("Please enter value for option [%s]: " % key)
+            new_build[key] = entry
         for entry in new_build:
             text = entry
             if len(text) > 20:
@@ -255,8 +245,33 @@ def remove_build(file_name: str):
 
 
 def edit_build(file_name: str):
-    # TODO
-    pass
+    """
+    Edits an existing section (build) in the configuration file.
+
+    :param file_name: The configuration file to use.
+    """
+    config = configparser.ConfigParser()
+    config.read(file_name)
+    build = select_build(file_name)
+    confirm = input("Editing build [%s], enter the build name exactly to confirm: " % build)
+    if confirm.rstrip() == build:
+        while True:
+            options = config.options(build)
+            print("Leave blank to use current value(s), otherwise enter new values...")
+            new_value = __create_dict(file_name)
+            for option in options:
+                if option in new_value and new_value[option].strip():
+                    config[build][option] = new_value.get(option)
+            __print_options(config, build)
+            selection = input("Enter 'y/Y' to confirm entries: ")
+            if selection in ["y", "Y"]:
+                with open(file_name, "w") as f:
+                    config.write(f)
+                    f.close()
+                    print("Build [%s]'s options changed!" % build)
+                break
+    else:
+        print("Aborting operation.")
 
 
 def cherry_pick(file_name: str):
@@ -336,11 +351,18 @@ def main():
         print("\t1). Select a build.")
         print("\t2). Remove a build.")
         print("\t3). Add a build.")
-        print("\t4). Edit a build (Not implemented yet).")
+        print("\t4). Edit a build.")
+        print("\t5). Cherry-pick from build (Not implemented yet).")
+        print("\t6). Add new files (Not implemented yet).")
+        # Will try to associate files to build options and print
+        # what's not being used as well as what files are missing for a build.
+        print("\t7). Print report (Not implemented yet).")
+        print("\t8). Print verbose tree structure (Not implemented yet).")
+        print("\t9). Reset test environment.")
         print("\t0). Exit.")
         try:
-            selection = int(input("Enter a number: "))
-            if selection == 1:
+            selection = input("Enter a number: ")
+            if selection == "1":
                 build = select_build(test_file)
                 if build:
                     files = build_paths(test_file, build)
@@ -362,13 +384,16 @@ def main():
                     copy_files(files, destination)
                     stop_time = time.process_time()
                     print("Total time: %s seconds." % round(stop_time - start_time, 3))
-            elif selection == 2:
+            elif selection == "2":
                 remove_build(test_file)
-            elif selection == 3:
+            elif selection == "3":
                 add_new_build(test_file)
-            elif selection == 4:
+            elif selection == "4":
                 edit_build(test_file)
-            elif selection == 0:
+            elif selection == "9":
+                shutil.rmtree(root_directory)
+                test_file = get_config()
+            elif selection == "0":
                 break
             else:
                 pass
