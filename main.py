@@ -1,5 +1,6 @@
 import configparser
 import os
+import random
 import shutil
 import time
 from pathlib import Path
@@ -9,13 +10,9 @@ base_config_name = "config.ini"
 file_list_config_name = "file-list.ini"
 home = str(os.path.expanduser("~"))
 root_directory = str(os.path.join(home, "file-picker"))
-base_paths = {"host_1": str(os.path.join(home, "file-picker", "host_1")),
-              "host_2": str(os.path.join(home, "file-picker", "host_2")),
-              "host_3": str(os.path.join(home, "file-picker", "host_3")),
-              "host_4": str(os.path.join(home, "file-picker", "host_4")),
-              "guide": str(os.path.join(home, "file-picker", "guide"))}
+base_paths = {"file_list": str(os.path.join(home, "file-picker", file_list_config_name))}
 
-file_list_default = {"base_directory": "dev1, dev2, dev3",
+file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
                      "firmware_directory": "firmware",
                      "network_directory": "network",
                      "images_directory": "volume",
@@ -80,7 +77,7 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
     config["DEFAULT"] = file_list_default
     print("Discovering files, this may take a while...")
 
-    # Crawling start.
+    # Crawling block.
     # Iterate over a list created out of the base_directory option.
     for base in map(lambda x: x.strip(), config.get("DEFAULT", "base_directory").split(",")):
         os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
@@ -88,21 +85,22 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
         # e.g. /dev1 for Linux, C:\dev1 for Windows.
         # May take a while...
         for current_path, dirs, files in os.walk(os_root_and_base):
-            for directory in config.options("DEFAULT"):
+            for directory in config["DEFAULT"]:
                 if directory != "base_directory":
-                    if current_path.find(directory) >= 0:
+                    option_value = config.get("DEFAULT", directory)
+                    if current_path.find(option_value) >= 0:
                         # Create a new section if necessary, based on the "DEFAULT" section's option.
-                        if not config.has_section(directory):
-                            config.add_section(directory)
+                        if not config.has_section(option_value):
+                            config.add_section(option_value)
                         # Add each file as the option's name and the file's path as the option's value.
                         for file in files:
-                            if config.has_option(directory, file):
+                            if config.has_option(option_value, file):
                                 # If there are multiple files with the same name, create a csv for the value.
-                                ov = config.get(directory, file)
+                                ov = config.get(option_value, file)
                                 nv = ov + ", " + os.path.join(current_path, file)
-                                config.set(directory, file, nv)
+                                config.set(option_value, file, nv)
                             else:
-                                config.set(directory, file, os.path.join(current_path, file))
+                                config.set(option_value, file, os.path.join(current_path, file))
     with open(os.path.join(absolute_path, file_name), "w") as config_file:
         config.write(config_file)
         config_file.close()
@@ -181,6 +179,7 @@ def build_paths(file_name: str, section: str) -> List[str]:
     files = []
     skipped_hosts = {}
 
+    # TODO: Edit this to work with the file-list.ini!
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
@@ -395,14 +394,32 @@ def __copy(src: str, dst: str):
 
 
 def create_test_storage_environment():
-    os.makedirs(os.path.join(home, "dev1", "firmware", "network", "volume"))
-    os.makedirs(os.path.join(home, "dev2", "firmware", "iso"))
-    os.makedirs(os.path.join(home, "dev3", "configs"))
-    os.makedirs(os.path.join(home, "dev3", "tools"))
+    print("Creating test environment...")
+    test_directory = [os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "network"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "volume"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware", "iso"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "configs"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "tools")]
+    test_files = ["test_1.1", "test_1.2", "test_1.3",
+                  "test_2", "test_3", "test_4",
+                  "install", "test", "misc",
+                  "duplicate_file", "duplicate_file"]
+    for x in test_directory:
+        if not Path(x).exists():
+            os.makedirs(x)
+    for file in test_files:
+        random_index = random.randrange(len(test_directory) - 1)
+        with open(os.path.join(test_directory[random_index], file), 'wb') as f:
+            f.write(os.urandom(16 * 1024 * 1024))  # 16 MB fake files.
+            # f.write(os.urandom(128 * 1024)) # 128 KB fake files.
+            f.close()
 
 
 def main():
     # TESTING
+    create_test_storage_environment()
     test_file = get_config()
     print("Test file:", test_file)
     while True:
@@ -428,14 +445,6 @@ def main():
                     destination = str(os.path.join(home, "file-picker", "test-destination"))
                     if not Path(destination).exists():
                         os.makedirs(destination)
-                    print("Creating fake files...")
-                    for file in files:
-                        if not Path(os.path.split(file)[0]).exists():
-                            os.makedirs(os.path.split(file)[0])
-                        with open(file, 'wb') as f:
-                            f.write(os.urandom(16 * 1024 * 1024))  # 16 MB fake files.
-                            # f.write(os.urandom(128 * 1024)) # 128 KB fake files.
-                            f.close()
                     print("Copying the following files to %s:" % destination)
                     for file in files:
                         print("\t %s" % file)
@@ -451,6 +460,10 @@ def main():
                 edit_build(test_file)
             elif selection == "9":
                 shutil.rmtree(root_directory)
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
+                create_test_storage_environment()
                 test_file = get_config()
             elif selection == "0":
                 break
@@ -459,6 +472,9 @@ def main():
         except ValueError:
             pass
     shutil.rmtree(root_directory)
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
 
 
 if __name__ == "__main__":
