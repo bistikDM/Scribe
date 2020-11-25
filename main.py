@@ -5,7 +5,8 @@ import time
 from pathlib import Path
 from typing import Union, List, Dict
 
-base_config = "config.ini"
+base_config_name = "config.ini"
+file_list_config_name = "file-list.ini"
 home = str(os.path.expanduser("~"))
 root_directory = str(os.path.join(home, "file-picker"))
 base_paths = {"host_1": str(os.path.join(home, "file-picker", "host_1")),
@@ -13,6 +14,14 @@ base_paths = {"host_1": str(os.path.join(home, "file-picker", "host_1")),
               "host_3": str(os.path.join(home, "file-picker", "host_3")),
               "host_4": str(os.path.join(home, "file-picker", "host_4")),
               "guide": str(os.path.join(home, "file-picker", "guide"))}
+
+file_list_default = {"base_directory": "dev1, dev2, dev3",
+                     "firmware_directory": "firmware",
+                     "network_directory": "network",
+                     "images_directory": "volume",
+                     "iso_directory": "iso",
+                     "config_directory": "configs",
+                     "tools_directory": "tools"}
 
 # TODO: Remove this variable!
 test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
@@ -22,9 +31,7 @@ test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
               "guide": "install, test, misc"}
 
 
-def create_config(absolute_path: str,
-                  file_name: str = base_config,
-                  configuration: Dict = None) -> str:
+def __create_config(absolute_path: str, file_name: str = base_config_name, configuration: Dict = None) -> str:
     """
     Creates a configuration file to be used.
 
@@ -54,10 +61,55 @@ def create_config(absolute_path: str,
         config_file.close()
         print("Base config file created.")
 
+    # Create a new file list if it does not exist.
+    file_list_config_file = Path(str(os.path.join(absolute_path, file_list_config_name)))
+    if not file_list_config_file.exists():
+        __create_file_list_config(absolute_path)
+
     return os.path.join(absolute_path, file_name)
 
 
-def get_config(absolute_path: str = root_directory, file_name: str = base_config) -> str:
+def __create_file_list_config(absolute_path: str, file_name: str = file_list_config_name):
+    """
+    Creates a configuration file that contains a listing of all available files within the system.
+
+    :param absolute_path: The location the file will be created.
+    :param file_name: The name of the configuration file.
+    """
+    config = configparser.ConfigParser()
+    config["DEFAULT"] = file_list_default
+    print("Discovering files, this may take a while...")
+
+    # Crawling start.
+    # Iterate over a list created out of the base_directory option.
+    for base in map(lambda x: x.strip(), config.get("DEFAULT", "base_directory").split(",")):
+        os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
+        # Start crawling from the root directory + base, / for Linux and C:\ for Windows.
+        # e.g. /dev1 for Linux, C:\dev1 for Windows.
+        # May take a while...
+        for current_path, dirs, files in os.walk(os_root_and_base):
+            for directory in config.options("DEFAULT"):
+                if directory != "base_directory":
+                    if current_path.find(directory) >= 0:
+                        # Create a new section if necessary, based on the "DEFAULT" section's option.
+                        if not config.has_section(directory):
+                            config.add_section(directory)
+                        # Add each file as the option's name and the file's path as the option's value.
+                        for file in files:
+                            if config.has_option(directory, file):
+                                # If there are multiple files with the same name, create a csv for the value.
+                                ov = config.get(directory, file)
+                                nv = ov + ", " + os.path.join(current_path, file)
+                                config.set(directory, file, nv)
+                            else:
+                                config.set(directory, file, os.path.join(current_path, file))
+    with open(os.path.join(absolute_path, file_name), "w") as config_file:
+        config.write(config_file)
+        config_file.close()
+        print("File list compiled.")
+
+
+def get_config(absolute_path: str = root_directory, file_name: str = base_config_name) -> str:
     """
     Retrieves the configuration file path needed.
 
@@ -69,7 +121,7 @@ def get_config(absolute_path: str = root_directory, file_name: str = base_config
 
     # Create a new configuration file if it does not exist.
     if not config_file.exists():
-        config_file = create_config(absolute_path)
+        config_file = __create_config(absolute_path)
 
     return config_file
 
@@ -342,6 +394,13 @@ def __copy(src: str, dst: str):
             pass
 
 
+def create_test_storage_environment():
+    os.makedirs(os.path.join(home, "dev1", "firmware", "network", "volume"))
+    os.makedirs(os.path.join(home, "dev2", "firmware", "iso"))
+    os.makedirs(os.path.join(home, "dev3", "configs"))
+    os.makedirs(os.path.join(home, "dev3", "tools"))
+
+
 def main():
     # TESTING
     test_file = get_config()
@@ -374,7 +433,7 @@ def main():
                         if not Path(os.path.split(file)[0]).exists():
                             os.makedirs(os.path.split(file)[0])
                         with open(file, 'wb') as f:
-                            f.write(os.urandom(16 * 1024 * 1024)) # 16 MB fake files.
+                            f.write(os.urandom(16 * 1024 * 1024))  # 16 MB fake files.
                             # f.write(os.urandom(128 * 1024)) # 128 KB fake files.
                             f.close()
                     print("Copying the following files to %s:" % destination)
