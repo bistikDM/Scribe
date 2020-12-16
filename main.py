@@ -47,7 +47,7 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
     if not Path(absolute_path).exists():
         os.makedirs(absolute_path)
     config = configparser.ConfigParser()
-    config["DEFAULT"] = configuration
+    config["CONFIGURATION"] = configuration
 
     # TODO: Remove this line!
     config["test_build"] = test_build
@@ -74,22 +74,22 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
     :param file_name: The name of the configuration file.
     """
     config = configparser.ConfigParser()
-    config["DEFAULT"] = file_list_default
+    config["CONFIGURATION"] = file_list_default
     print("Discovering files, this may take a while...")
 
     # Crawling block.
     # Iterate over a list created out of the base_directory option.
-    for base in map(lambda x: x.strip(), config.get("DEFAULT", "base_directory").split(",")):
+    for base in map(lambda x: x.strip(), config.get("CONFIGURATION", "base_directory").split(",")):
         os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
         # Start crawling from the root directory + base, / for Linux and C:\ for Windows.
         # e.g. /dev1 for Linux, C:\dev1 for Windows.
         # May take a while...
         for current_path, dirs, files in os.walk(os_root_and_base):
-            for directory in config["DEFAULT"]:
+            for directory in config["CONFIGURATION"]:
                 if directory != "base_directory":
-                    option_value = config.get("DEFAULT", directory)
+                    option_value = config.get("CONFIGURATION", directory)
                     if current_path.find(option_value) >= 0:
-                        # Create a new section if necessary, based on the "DEFAULT" section's option.
+                        # Create a new section if necessary, based on the "CONFIGURATION" section's option.
                         if not config.has_section(option_value):
                             config.add_section(option_value)
                         # Add each file as the option's name and the file's path as the option's value.
@@ -134,6 +134,7 @@ def select_build(file_name: str) -> str:
     config = configparser.ConfigParser()
     config.read(file_name)
     sections = config.sections()
+    sections.remove("CONFIGURATION")
     index = None
     selection = None
 
@@ -176,22 +177,33 @@ def build_paths(file_name: str, section: str) -> List[str]:
     config = configparser.ConfigParser()
     config.read(file_name)
     subsection = config[section]
-    files = []
+    retrieved_files = []
     skipped_hosts = {}
 
+    file_list = configparser.ConfigParser()
+    file_list.read(config.get("CONFIGURATION", "file_list"))
+    file_list_sections = file_list.sections()
+
     # TODO: Edit this to work with the file-list.ini!
+    # TODO: Need to Create the destination directory tree!
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
-        file_list = config[section][entry].split(",")
-        for file in file_list:
-            if config.has_option("DEFAULT", entry):
-                path = os.path.join(config["DEFAULT"][entry], file.strip())
-                files.append(path)
-            else:
+        build_list = list(map(lambda x: x.strip(), config.get(section, entry).split(",")))
+        for file in build_list:
+            for directory in file_list_sections:
+                if file_list.has_option(directory, file):
+                    for x in file_list.get(directory, file).split(","):
+                        retrieved_files.append(x.strip())
+
+    available_files = list(map(lambda x: os.path.split(x)[1], retrieved_files))
+    for entry in subsection:
+        build_list = list(map(lambda x: x.strip(), config.get(section, entry).split(",")))
+        for file in build_list:
+            if file not in available_files:
                 skipped_hosts[entry] = config[section][entry]
     if skipped_hosts:
-        print("\n*WARNING* Path does not exist in \"DEFAULT\" for the following host(s), and has been skipped:")
+        print("\n*WARNING* Path does not exist in \"CONFIGURATION\" for the following host(s), and has been skipped:")
         for entry in skipped_hosts:
             text = entry
             if len(text) > 20:
@@ -199,7 +211,7 @@ def build_paths(file_name: str, section: str) -> List[str]:
             print("\t", text.ljust(20), "=", skipped_hosts[entry])
         input("Press [Enter] key to acknowledge...")
 
-    return files
+    return retrieved_files
 
 
 def __print_options(config: configparser.ConfigParser, section: str):
@@ -209,14 +221,13 @@ def __print_options(config: configparser.ConfigParser, section: str):
     :param config: The configuration file to use.
     :param section: The build name to use.
     """
-    subsection = config[section]
-
+    options = config[section]
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
-    for entry in subsection:
+    for entry in options:
         text = entry
         if len(text) > 20:
             text = entry[:17] + "..."
-        print("\t", text.ljust(20), "=", subsection[entry])
+        print("\t", text.ljust(20), "=", config.get(section, entry))
 
 
 def add_new_build(file_name: str):
@@ -248,12 +259,12 @@ def __create_dict(file_name: str) -> Dict[str, str]:
     """
     Create a dictionary from user's input.
 
-    :param file_name: The configuration file to get the "DEFAULT" section for keys.
-    :return: A dictionary based on "DEFAULT" section and user's input.
+    :param file_name: The configuration file to get the "CONFIGURATION" section for keys.
+    :return: A dictionary based on "CONFIGURATION" section and user's input.
     """
     config = configparser.ConfigParser()
     config.read(file_name)
-    default = config["DEFAULT"]
+    default = config["CONFIGURATION"]
     new_build = {}
     confirm = False
     print("\n*Enter either a comma separated value of multiple files or a single file*")
