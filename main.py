@@ -438,13 +438,6 @@ def __copy(src: str, dst: str):
 
 def create_test_storage_environment():
     print("Creating test environment...")
-    # "firmware_directory": "firmware",
-    # "network_directory": "network",
-    # "images_directory": "volume",
-    # "iso_directory": "ISO_images",
-    # "config_directory": "configs",
-    # "delta_directory:": "deltas",
-    # "tools_directory": "tools"}
     test_directory = [os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware"),
     os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "network"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "volume"),
