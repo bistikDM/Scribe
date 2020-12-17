@@ -2,9 +2,10 @@ import configparser
 import os
 import random
 import shutil
-import tqdm
 from pathlib import Path
 from typing import Union, List, Dict
+
+import tqdm
 
 base_config_name = "config.ini"
 file_list_config_name = "file-list.ini"
@@ -12,29 +13,45 @@ home = str(os.path.expanduser("~"))
 root_directory = str(os.path.join(home, "file-picker"))
 base_paths = {"file_list": str(os.path.join(home, "file-picker", file_list_config_name))}
 
+CONFIGURATION = "CONFIGURATION"
+HOST_NAMES = "HOST_NAMES"
+
 file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
                      "firmware_directory": "firmware",
                      "network_directory": "network",
                      "images_directory": "volume",
-                     "iso_directory": "iso",
+                     "iso_directory": "ISO_images",
                      "config_directory": "configs",
+                     "delta_directory:": "deltas",
                      "tools_directory": "tools"}
 
+default_host_names = {"firmware": "True",
+                      "network": "True",
+                      "volume": "True",
+                      "ISO_images": "True",
+                      "configs": "True",
+                      "deltas": "True",
+                      "tools": "True"}
+
 # TODO: Remove this variable!
-test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
-              "host_2": "test_2",
-              "host_3": "test_3",
-              "host_4": "test_4",
-              "guide": "install, test, misc"}
+test_build = {"firmware": "test_1.1, test_1.2, test_1.3",
+              "network": "test_2",
+              "volume": "test_3",
+              "ISO_images": "test_4",
+              "configs": "test_5",
+              "deltas": "test_6",
+              "tools": "install, test, misc"}
 
 
-def __create_config(absolute_path: str, file_name: str = base_config_name, configuration: Dict = None) -> str:
+def __create_config(absolute_path: str, file_name: str = base_config_name, configuration: Dict = None,
+                    host_names: Dict = None) -> str:
     """
     Creates a configuration file to be used.
 
     :param absolute_path: The location the file will be created.
     :param file_name: The name of the configuration file.
     :param configuration: The configuration to be entered into the file.
+    :param host_names: The default host names to use.
     :return: The newly created configuration file's path.
     """
     print("Creating base config file.")
@@ -43,11 +60,15 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
     if configuration is None:
         configuration = base_paths
 
+    if host_names is None:
+        host_names = default_host_names
+
     # Create the directories if it does not exist.
     if not Path(absolute_path).exists():
         os.makedirs(absolute_path)
     config = configparser.ConfigParser()
-    config["CONFIGURATION"] = configuration
+    config[CONFIGURATION] = configuration
+    config[HOST_NAMES] = host_names
 
     # TODO: Remove this line!
     config["test_build"] = test_build
@@ -74,22 +95,22 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
     :param file_name: The name of the configuration file.
     """
     config = configparser.ConfigParser()
-    config["CONFIGURATION"] = file_list_default
+    config[CONFIGURATION] = file_list_default
     print("Discovering files, this may take a while...")
 
     # Crawling block.
     # Iterate over a list created out of the base_directory option.
-    for base in map(lambda x: x.strip(), config.get("CONFIGURATION", "base_directory").split(",")):
+    for base in map(lambda x: x.strip(), config.get(CONFIGURATION, "base_directory").split(",")):
         os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
         # Start crawling from the root directory + base, / for Linux and C:\ for Windows.
         # e.g. /dev1 for Linux, C:\dev1 for Windows.
         # May take a while...
         for current_path, dirs, files in os.walk(os_root_and_base):
-            for directory in config["CONFIGURATION"]:
+            for directory in config[CONFIGURATION]:
                 if directory != "base_directory":
-                    option_value = config.get("CONFIGURATION", directory)
+                    option_value = config.get(CONFIGURATION, directory)
                     if current_path.find(option_value) >= 0:
-                        # Create a new section if necessary, based on the "CONFIGURATION" section's option.
+                        # Create a new section if necessary, based on the CONFIGURATION section's option.
                         if not config.has_section(option_value):
                             config.add_section(option_value)
                         # Add each file as the option's name and the file's path as the option's value.
@@ -134,7 +155,8 @@ def select_build(file_name: str) -> str:
     config = configparser.ConfigParser()
     config.read(file_name)
     sections = config.sections()
-    sections.remove("CONFIGURATION")
+    sections.remove(CONFIGURATION)
+    sections.remove(HOST_NAMES)
     index = None
     selection = None
 
@@ -181,10 +203,9 @@ def build_paths(file_name: str, section: str) -> List[str]:
     skipped_hosts = {}
 
     file_list = configparser.ConfigParser()
-    file_list.read(config.get("CONFIGURATION", "file_list"))
+    file_list.read(config.get(CONFIGURATION, "file_list"))
     file_list_sections = file_list.sections()
 
-    # TODO: Edit this to work with the file-list.ini!
     # TODO: Need to Create the destination directory tree!
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
@@ -259,20 +280,24 @@ def __create_dict(file_name: str) -> Dict[str, str]:
     """
     Create a dictionary from user's input.
 
-    :param file_name: The configuration file to get the "CONFIGURATION" section for keys.
-    :return: A dictionary based on "CONFIGURATION" section and user's input.
+    :param file_name: The configuration file to get the CONFIGURATION section for keys.
+    :return: A dictionary based on CONFIGURATION section and user's input.
     """
     config = configparser.ConfigParser()
     config.read(file_name)
-    default = config["CONFIGURATION"]
+    default = config[HOST_NAMES]
     new_build = {}
     confirm = False
     print("\n*Enter either a comma separated value of multiple files or a single file*")
 
     while not confirm:
         for key in default:
-            entry = input("Please enter value for option [%s]: " % key)
-            new_build[key] = entry
+            if default.get(key) == "True":
+                entry = ""
+                while not entry:
+                    entry = input("Please enter value for option [%s]: " % key)
+                    entry.strip()
+                new_build[key] = entry
         for entry in new_build:
             text = entry
             if len(text) > 20:
