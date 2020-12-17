@@ -1,36 +1,57 @@
 import configparser
 import os
+import random
 import shutil
-import time
 from pathlib import Path
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 
-base_config = "config.ini"
+import tqdm
+
+base_config_name = "config.ini"
+file_list_config_name = "file-list.ini"
 home = str(os.path.expanduser("~"))
 root_directory = str(os.path.join(home, "file-picker"))
-base_paths = {"host_1": str(os.path.join(home, "file-picker", "host_1")),
-              "host_2": str(os.path.join(home, "file-picker", "host_2")),
-              "host_3": str(os.path.join(home, "file-picker", "host_3")),
-              "host_4": str(os.path.join(home, "file-picker", "host_4")),
-              "guide": str(os.path.join(home, "file-picker", "guide"))}
+base_paths = {"file_list": str(os.path.join(home, "file-picker", file_list_config_name))}
+
+CONFIGURATION = "CONFIGURATION"
+HOST_NAMES = "HOST_NAMES"
+
+file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
+                     "firmware_directory": "firmware",
+                     "network_directory": "network",
+                     "images_directory": "volume",
+                     "iso_directory": "ISO_images",
+                     "config_directory": "configs",
+                     "delta_directory:": "deltas",
+                     "tools_directory": "tools"}
+
+default_host_names = {"firmware": "True",
+                      "network": "True",
+                      "volume": "True",
+                      "ISO_images": "True",
+                      "configs": "True",
+                      "deltas": "True",
+                      "tools": "True"}
 
 # TODO: Remove this variable!
-test_build = {"host_1": "test_1.1, test_1.2, test_1.3",
-              "host_2": "test_2",
-              "host_3": "test_3",
-              "host_4": "test_4",
-              "guide": "install, test, misc"}
+test_build = {"firmware": "test_1.1, test_1.2, test_1.3",
+              "network": "test_2",
+              "volume": "test_3",
+              "ISO_images": "test_4",
+              "configs": "test_5",
+              "deltas": "test_6",
+              "tools": "install, test, misc"}
 
 
-def create_config(absolute_path: str,
-                  file_name: str = base_config,
-                  configuration: Dict = None) -> str:
+def __create_config(absolute_path: str, file_name: str = base_config_name, configuration: Dict = None,
+                    host_names: Dict = None) -> str:
     """
     Creates a configuration file to be used.
 
     :param absolute_path: The location the file will be created.
     :param file_name: The name of the configuration file.
     :param configuration: The configuration to be entered into the file.
+    :param host_names: The default host names to use.
     :return: The newly created configuration file's path.
     """
     print("Creating base config file.")
@@ -39,11 +60,15 @@ def create_config(absolute_path: str,
     if configuration is None:
         configuration = base_paths
 
+    if host_names is None:
+        host_names = default_host_names
+
     # Create the directories if it does not exist.
     if not Path(absolute_path).exists():
         os.makedirs(absolute_path)
     config = configparser.ConfigParser()
-    config["DEFAULT"] = configuration
+    config[CONFIGURATION] = configuration
+    config[HOST_NAMES] = host_names
 
     # TODO: Remove this line!
     config["test_build"] = test_build
@@ -54,10 +79,56 @@ def create_config(absolute_path: str,
         config_file.close()
         print("Base config file created.")
 
+    # Create a new file list if it does not exist.
+    file_list_config_file = Path(str(os.path.join(absolute_path, file_list_config_name)))
+    if not file_list_config_file.exists():
+        __create_file_list_config(absolute_path)
+
     return os.path.join(absolute_path, file_name)
 
 
-def get_config(absolute_path: str = root_directory, file_name: str = base_config) -> str:
+def __create_file_list_config(absolute_path: str, file_name: str = file_list_config_name):
+    """
+    Creates a configuration file that contains a listing of all available files within the system.
+
+    :param absolute_path: The location the file will be created.
+    :param file_name: The name of the configuration file.
+    """
+    config = configparser.ConfigParser()
+    config[CONFIGURATION] = file_list_default
+    print("Discovering files, this may take a while...")
+
+    # Crawling block.
+    # Iterate over a list created out of the base_directory option.
+    for base in map(lambda x: x.strip(), config.get(CONFIGURATION, "base_directory").split(",")):
+        os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
+        # Start crawling from the root directory + base, / for Linux and C:\ for Windows.
+        # e.g. /dev1 for Linux, C:\dev1 for Windows.
+        # May take a while...
+        for current_path, dirs, files in os.walk(os_root_and_base):
+            for directory in config[CONFIGURATION]:
+                if directory != "base_directory":
+                    option_value = config.get(CONFIGURATION, directory)
+                    if current_path.find(option_value) >= 0:
+                        # Create a new section if necessary, based on the CONFIGURATION section's option.
+                        if not config.has_section(option_value):
+                            config.add_section(option_value)
+                        # Add each file as the option's name and the file's path as the option's value.
+                        for file in files:
+                            if config.has_option(option_value, file):
+                                # If there are multiple files with the same name, create a csv for the value.
+                                ov = config.get(option_value, file)
+                                nv = ov + ", " + os.path.join(current_path, file)
+                                config.set(option_value, file, nv)
+                            else:
+                                config.set(option_value, file, os.path.join(current_path, file))
+    with open(os.path.join(absolute_path, file_name), "w") as config_file:
+        config.write(config_file)
+        config_file.close()
+        print("File list compiled.")
+
+
+def get_config(absolute_path: str = root_directory, file_name: str = base_config_name) -> str:
     """
     Retrieves the configuration file path needed.
 
@@ -69,7 +140,7 @@ def get_config(absolute_path: str = root_directory, file_name: str = base_config
 
     # Create a new configuration file if it does not exist.
     if not config_file.exists():
-        config_file = create_config(absolute_path)
+        config_file = __create_config(absolute_path)
 
     return config_file
 
@@ -84,6 +155,8 @@ def select_build(file_name: str) -> str:
     config = configparser.ConfigParser()
     config.read(file_name)
     sections = config.sections()
+    sections.remove(CONFIGURATION)
+    sections.remove(HOST_NAMES)
     index = None
     selection = None
 
@@ -115,32 +188,43 @@ def select_build(file_name: str) -> str:
     return selection
 
 
-def build_paths(file_name: str, section: str) -> List[str]:
+def build_paths(file_name: str, section: str) -> List[Tuple[str, str]]:
     """
     Build all the file paths for section based on the section's options.
 
     :param file_name: The configuration file to use.
     :param section: The build name to use.
-    :return: A list containing the absolute paths of all files described in the section's option.
+    :return: A list containing tuples of section name and absolute paths pairings of all files described in the
+             section's option.
     """
     config = configparser.ConfigParser()
     config.read(file_name)
     subsection = config[section]
-    files = []
+    retrieved_files = []
     skipped_hosts = {}
+
+    file_list = configparser.ConfigParser()
+    file_list.read(config.get(CONFIGURATION, "file_list"))
+    file_list_sections = file_list.sections()
 
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
-        file_list = config[section][entry].split(",")
-        for file in file_list:
-            if config.has_option("DEFAULT", entry):
-                path = os.path.join(config["DEFAULT"][entry], file.strip())
-                files.append(path)
-            else:
+        build_list = list(map(lambda x: x.strip(), config.get(section, entry).split(",")))
+        for file in build_list:
+            for directory in file_list_sections:
+                if file_list.has_option(directory, file):
+                    for x in file_list.get(directory, file).split(","):
+                        retrieved_files.append((directory, x.strip()))
+
+    available_files = list(map(lambda x: os.path.split(x[1])[1], retrieved_files))
+    for entry in subsection:
+        build_list = list(map(lambda x: x.strip(), config.get(section, entry).split(",")))
+        for file in build_list:
+            if file not in available_files:
                 skipped_hosts[entry] = config[section][entry]
     if skipped_hosts:
-        print("\n*WARNING* Path does not exist in \"DEFAULT\" for the following host(s), and has been skipped:")
+        print("\n*WARNING* Path does not exist in \"CONFIGURATION\" for the following host(s), and has been skipped:")
         for entry in skipped_hosts:
             text = entry
             if len(text) > 20:
@@ -148,7 +232,7 @@ def build_paths(file_name: str, section: str) -> List[str]:
             print("\t", text.ljust(20), "=", skipped_hosts[entry])
         input("Press [Enter] key to acknowledge...")
 
-    return files
+    return retrieved_files
 
 
 def __print_options(config: configparser.ConfigParser, section: str):
@@ -158,14 +242,13 @@ def __print_options(config: configparser.ConfigParser, section: str):
     :param config: The configuration file to use.
     :param section: The build name to use.
     """
-    subsection = config[section]
-
+    options = config[section]
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
-    for entry in subsection:
+    for entry in options:
         text = entry
         if len(text) > 20:
             text = entry[:17] + "..."
-        print("\t", text.ljust(20), "=", subsection[entry])
+        print("\t", text.ljust(20), "=", config.get(section, entry))
 
 
 def add_new_build(file_name: str):
@@ -197,20 +280,24 @@ def __create_dict(file_name: str) -> Dict[str, str]:
     """
     Create a dictionary from user's input.
 
-    :param file_name: The configuration file to get the "DEFAULT" section for keys.
-    :return: A dictionary based on "DEFAULT" section and user's input.
+    :param file_name: The configuration file to get the CONFIGURATION section for keys.
+    :return: A dictionary based on CONFIGURATION section and user's input.
     """
     config = configparser.ConfigParser()
     config.read(file_name)
-    default = config["DEFAULT"]
+    default = config[HOST_NAMES]
     new_build = {}
     confirm = False
     print("\n*Enter either a comma separated value of multiple files or a single file*")
 
     while not confirm:
         for key in default:
-            entry = input("Please enter value for option [%s]: " % key)
-            new_build[key] = entry
+            if default.get(key) == "True":
+                entry = ""
+                while not entry:
+                    entry = input("Please enter value for option [%s]: " % key)
+                    entry.strip()
+                new_build[key] = entry
         for entry in new_build:
             text = entry
             if len(text) > 20:
@@ -284,11 +371,11 @@ def print_storage():
     pass
 
 
-def copy_files(file_name: Union[str, List[str]], destination_directory: str):
+def copy_files(file_name: Union[Tuple[str, str], List[Tuple[str, str]]], destination_directory: str):
     """
     Copies file(s) to the provided destination.
 
-    :param file_name: The file(s) to be copied.
+    :param file_name: The file(s) in (section name, absolute path) tuple pair to be copied.
     :param destination_directory: The location where the file(s) will be copied to.
     :return: True if the operation was successful, otherwise false.
     """
@@ -298,13 +385,21 @@ def copy_files(file_name: Union[str, List[str]], destination_directory: str):
 
     if isinstance(file_name, List):
         for file in file_name:
-            head_tail = os.path.split(file)
-            destination = os.path.join(destination_directory, head_tail[1])
-            __copy(file, destination)
+            # Create the final destination directories that mirrors the repository then copy files.
+            final_path = str(os.path.join(destination_directory, file[0]))
+            if not Path(final_path).exists():
+                os.makedirs(final_path)
+            head_tail = os.path.split(file[1])
+            destination = os.path.join(final_path, head_tail[1])
+            __copy(file[1], destination)
     else:
-        head_tail = os.path.split(file_name)
-        destination = os.path.join(destination_directory, head_tail[1])
-        __copy(file_name, destination)
+        # Create the final destination directories that mirrors the repository then copy file.
+        final_path = str(os.path.join(destination_directory, file_name[0]))
+        if not Path(final_path).exists():
+            os.makedirs(final_path)
+        head_tail = os.path.split(file_name[1])
+        destination = os.path.join(final_path, head_tail[1])
+        __copy(file_name[1], destination)
 
 
 def __copy(src: str, dst: str):
@@ -318,14 +413,13 @@ def __copy(src: str, dst: str):
     write_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | o_binary
     buffer_size = 128 * 1024
     try:
-        start_time = time.process_time()
         file_in = os.open(src, read_flags)
         stat = os.fstat(file_in)
         file_out = os.open(dst, write_flags, stat.st_mode)
-        for x in iter(lambda: os.read(file_in, buffer_size), b''):
-            os.write(file_out, x)
-        end_time = time.process_time()
-        print("[%s] completed in: %s seconds." % (os.path.split(src)[1], round(end_time - start_time, 3)))
+        with tqdm.tqdm(desc=os.path.split(src)[1], total=stat.st_size, unit_scale=True, unit='') as bar:
+            for x in iter(lambda: os.read(file_in, buffer_size), b''):
+                os.write(file_out, x)
+                bar.update(len(x))
     except:
         # TODO: Catch an actual error type.
         print("Copy failed for %s!" % src)
@@ -342,8 +436,33 @@ def __copy(src: str, dst: str):
             pass
 
 
+def create_test_storage_environment():
+    print("Creating test environment...")
+    test_directory = [os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware"),
+    os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "network"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "volume"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware", "ISO_images"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "configs"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "tools")]
+    test_files = ["test_1.1", "test_1.2", "test_1.3",
+                  "test_2", "test_3", "test_4",
+                  "install", "test", "misc",
+                  "duplicate_file", "duplicate_file"]
+    for x in test_directory:
+        if not Path(x).exists():
+            os.makedirs(x)
+    for file in test_files:
+        random_index = random.randrange(len(test_directory) - 1)
+        with open(os.path.join(test_directory[random_index], file), 'wb') as f:
+            f.write(os.urandom(16 * 1024 * 1024))  # 16 MB fake files.
+            # f.write(os.urandom(128 * 1024)) # 128 KB fake files.
+            f.close()
+
+
 def main():
     # TESTING
+    create_test_storage_environment()
     test_file = get_config()
     print("Test file:", test_file)
     while True:
@@ -369,21 +488,10 @@ def main():
                     destination = str(os.path.join(home, "file-picker", "test-destination"))
                     if not Path(destination).exists():
                         os.makedirs(destination)
-                    print("Creating fake files...")
-                    for file in files:
-                        if not Path(os.path.split(file)[0]).exists():
-                            os.makedirs(os.path.split(file)[0])
-                        with open(file, 'wb') as f:
-                            f.write(os.urandom(16 * 1024 * 1024)) # 16 MB fake files.
-                            # f.write(os.urandom(128 * 1024)) # 128 KB fake files.
-                            f.close()
                     print("Copying the following files to %s:" % destination)
                     for file in files:
-                        print("\t %s" % file)
-                    start_time = time.process_time()
+                        print("\t %s" % file[1])
                     copy_files(files, destination)
-                    stop_time = time.process_time()
-                    print("Total time: %s seconds." % round(stop_time - start_time, 3))
             elif selection == "2":
                 remove_build(test_file)
             elif selection == "3":
@@ -392,6 +500,10 @@ def main():
                 edit_build(test_file)
             elif selection == "9":
                 shutil.rmtree(root_directory)
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
+                create_test_storage_environment()
                 test_file = get_config()
             elif selection == "0":
                 break
@@ -400,6 +512,9 @@ def main():
         except ValueError:
             pass
     shutil.rmtree(root_directory)
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
 
 
 if __name__ == "__main__":
