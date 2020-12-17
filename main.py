@@ -3,7 +3,7 @@ import os
 import random
 import shutil
 from pathlib import Path
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 
 import tqdm
 
@@ -188,13 +188,14 @@ def select_build(file_name: str) -> str:
     return selection
 
 
-def build_paths(file_name: str, section: str) -> List[str]:
+def build_paths(file_name: str, section: str) -> List[Tuple[str, str]]:
     """
     Build all the file paths for section based on the section's options.
 
     :param file_name: The configuration file to use.
     :param section: The build name to use.
-    :return: A list containing the absolute paths of all files described in the section's option.
+    :return: A list containing tuples of section name and absolute paths pairings of all files described in the
+             section's option.
     """
     config = configparser.ConfigParser()
     config.read(file_name)
@@ -206,7 +207,6 @@ def build_paths(file_name: str, section: str) -> List[str]:
     file_list.read(config.get(CONFIGURATION, "file_list"))
     file_list_sections = file_list.sections()
 
-    # TODO: Need to Create the destination directory tree!
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
@@ -215,9 +215,9 @@ def build_paths(file_name: str, section: str) -> List[str]:
             for directory in file_list_sections:
                 if file_list.has_option(directory, file):
                     for x in file_list.get(directory, file).split(","):
-                        retrieved_files.append(x.strip())
+                        retrieved_files.append((directory, x.strip()))
 
-    available_files = list(map(lambda x: os.path.split(x)[1], retrieved_files))
+    available_files = list(map(lambda x: os.path.split(x[1])[1], retrieved_files))
     for entry in subsection:
         build_list = list(map(lambda x: x.strip(), config.get(section, entry).split(",")))
         for file in build_list:
@@ -371,11 +371,11 @@ def print_storage():
     pass
 
 
-def copy_files(file_name: Union[str, List[str]], destination_directory: str):
+def copy_files(file_name: Union[Tuple[str, str], List[Tuple[str, str]]], destination_directory: str):
     """
     Copies file(s) to the provided destination.
 
-    :param file_name: The file(s) to be copied.
+    :param file_name: The file(s) in (section name, absolute path) tuple pair to be copied.
     :param destination_directory: The location where the file(s) will be copied to.
     :return: True if the operation was successful, otherwise false.
     """
@@ -385,13 +385,21 @@ def copy_files(file_name: Union[str, List[str]], destination_directory: str):
 
     if isinstance(file_name, List):
         for file in file_name:
-            head_tail = os.path.split(file)
-            destination = os.path.join(destination_directory, head_tail[1])
-            __copy(file, destination)
+            # Create the final destination directories that mirrors the repository then copy files.
+            final_path = str(os.path.join(destination_directory, file[0]))
+            if not Path(final_path).exists():
+                os.makedirs(final_path)
+            head_tail = os.path.split(file[1])
+            destination = os.path.join(final_path, head_tail[1])
+            __copy(file[1], destination)
     else:
-        head_tail = os.path.split(file_name)
-        destination = os.path.join(destination_directory, head_tail[1])
-        __copy(file_name, destination)
+        # Create the final destination directories that mirrors the repository then copy file.
+        final_path = str(os.path.join(destination_directory, file_name[0]))
+        if not Path(final_path).exists():
+            os.makedirs(final_path)
+        head_tail = os.path.split(file_name[1])
+        destination = os.path.join(final_path, head_tail[1])
+        __copy(file_name[1], destination)
 
 
 def __copy(src: str, dst: str):
@@ -430,11 +438,18 @@ def __copy(src: str, dst: str):
 
 def create_test_storage_environment():
     print("Creating test environment...")
+    # "firmware_directory": "firmware",
+    # "network_directory": "network",
+    # "images_directory": "volume",
+    # "iso_directory": "ISO_images",
+    # "config_directory": "configs",
+    # "delta_directory:": "deltas",
+    # "tools_directory": "tools"}
     test_directory = [os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware"),
-                      os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "network"),
+    os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "network"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "volume"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware"),
-                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware", "iso"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware", "ISO_images"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "configs"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "tools")]
     test_files = ["test_1.1", "test_1.2", "test_1.3",
@@ -482,7 +497,7 @@ def main():
                         os.makedirs(destination)
                     print("Copying the following files to %s:" % destination)
                     for file in files:
-                        print("\t %s" % file)
+                        print("\t %s" % file[1])
                     copy_files(files, destination)
             elif selection == "2":
                 remove_build(test_file)
