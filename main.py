@@ -2,7 +2,7 @@ import configparser
 import os
 import random
 import shutil
-import time
+import tqdm
 from pathlib import Path
 from typing import Union, List, Dict
 
@@ -380,14 +380,13 @@ def __copy(src: str, dst: str):
     write_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | o_binary
     buffer_size = 128 * 1024
     try:
-        start_time = time.process_time()
         file_in = os.open(src, read_flags)
         stat = os.fstat(file_in)
         file_out = os.open(dst, write_flags, stat.st_mode)
-        for x in iter(lambda: os.read(file_in, buffer_size), b''):
-            os.write(file_out, x)
-        end_time = time.process_time()
-        print("[%s] completed in: %s seconds." % (os.path.split(src)[1], round(end_time - start_time, 3)))
+        with tqdm.tqdm(desc=os.path.split(src)[1], total=stat.st_size, unit_scale=True, unit='') as bar:
+            for x in iter(lambda: os.read(file_in, buffer_size), b''):
+                os.write(file_out, x)
+                bar.update(len(x))
     except:
         # TODO: Catch an actual error type.
         print("Copy failed for %s!" % src)
@@ -459,10 +458,7 @@ def main():
                     print("Copying the following files to %s:" % destination)
                     for file in files:
                         print("\t %s" % file)
-                    start_time = time.process_time()
                     copy_files(files, destination)
-                    stop_time = time.process_time()
-                    print("Total time: %s seconds." % round(stop_time - start_time, 3))
             elif selection == "2":
                 remove_build(test_file)
             elif selection == "3":
