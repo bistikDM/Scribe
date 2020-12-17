@@ -9,7 +9,7 @@ def create_test_storage_environment():
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "network"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev1", "firmware", "volume"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware"),
-                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware", "ISO_images"),
+                      os.path.join(os.path.abspath(os.sep), "file-picker-dev2", "firmware", "iso_images"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "configs"),
                       os.path.join(os.path.abspath(os.sep), "file-picker-dev3", "tools")]
     test_files = ["test_1.1", "test_1.2", "test_1.3",

@@ -15,7 +15,7 @@ file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file
                      "firmware_directory": "firmware",
                      "network_directory": "network",
                      "images_directory": "volume",
-                     "iso_directory": "ISO_images",
+                     "iso_directory": "iso_images",
                      "config_directory": "configs",
                      "delta_directory:": "deltas",
                      "tools_directory": "tools"}
@@ -23,7 +23,7 @@ file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file
 default_host_names = {"firmware": "True",
                       "network": "True",
                       "volume": "True",
-                      "ISO_images": "True",
+                      "iso_images": "True",
                       "configs": "True",
                       "deltas": "True",
                       "tools": "True"}
@@ -32,7 +32,7 @@ default_host_names = {"firmware": "True",
 test_build = {"firmware": "test_1.1, test_1.2, test_1.3",
               "network": "test_2",
               "volume": "test_3",
-              "ISO_images": "test_4",
+              "iso_images": "test_4",
               "configs": "test_5",
               "deltas": "test_6",
               "tools": "install, test, misc"}
