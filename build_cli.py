@@ -1,67 +1,62 @@
+import collections
 import configparser
 import os
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, OrderedDict
 
 import setup
 
 
-def select_build(file_name: str) -> str:
+def get_builds() -> List[str]:
     """
-    Reads, display, then allow the selection of a specific build from the configuration file.
+    Retrieves all the sections available inside config.ini.
 
-    :param file_name: The configuration file.
-    :return: The selected build name, or None if no builds are available in the configuration file.
+    :return: Returns a list containing all available sections inside config.ini excluding the
+             "CONFIGURATION" and "HOST_NAMES" section.
     """
     config = configparser.ConfigParser()
-    config.read(file_name)
+    config.read(setup.get_config())
     sections = config.sections()
     sections.remove(setup.CONFIGURATION_SECTION)
     sections.remove(setup.HOST_NAMES_SECTION)
-    index = None
-    selection = None
+    return sections
 
-    # Get user's selection.
-    while True:
-        if len(sections) <= 0:
-            print("There are no builds saved in the configuration file!")
-            break
-        print("\nBuild list:")
-        for section in sections:
-            print("\t", (str((sections.index(section) + 1)) + ").").ljust(5), section)
-        while not index:
-            try:
-                index = int(input("Enter a build number: "))
-                if index < len(sections) or index > len(sections):
-                    index = None
-                    print("Invalid selection!")
-            except ValueError:
-                # User entered a non-integer value, looping back.
-                pass
-        selection = sections[index - 1]
-        print("\nBuild [%s] selected:" % selection)
-        __print_options(config, selection)
-        confirm = input("Enter 'y/Y' to confirm selection: ")
-        if confirm in ["y", "Y"]:
-            break
+
+def get_options(config_file: str, section: str) -> OrderedDict[str, str]:
+    """
+    Retrieves all the options in a section of a configuration file.
+
+    :param config_file: The configuration file to use.
+    :param section: The section name to use.
+    :return: An ordered {option: option value}, may raise a configparser.NoSectionError or EmptySectionError.
+    """
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    try:
+        options = config.options(section)
+        option_dictionary = collections.OrderedDict()
+        if options:
+            for entry in options:
+                option_dictionary[entry] = config.get(section, entry)
+            return option_dictionary
         else:
-            index = None
-    return selection
+            raise EmptySectionError
+    except configparser.NoSectionError:
+        raise
 
 
-def build_paths(file_name: str, section: str) -> List[Tuple[str, str]]:
+def build_paths(section: str) -> Tuple[OrderedDict[str, str], List[Tuple[str, str]]]:
     """
     Build all the file paths for section based on the section's options.
 
-    :param file_name: The configuration file to use.
     :param section: The build name to use.
-    :return: A list containing tuples of section name and absolute paths pairings of all files described in the
-             section's option.
+    :return: An ordered {option: filename} of skipped files and a list containing tuples of section name
+             and absolute paths pairings of all files described in the section's option.
     """
     config = configparser.ConfigParser()
-    config.read(file_name)
+    config.read(setup.get_config())
     subsection = config[section]
     retrieved_files = []
-    skipped_hosts = {}
+    skipped_options = collections.OrderedDict()
 
     file_list = configparser.ConfigParser()
     file_list.read(config.get(setup.CONFIGURATION_SECTION, "file_list"))
@@ -82,41 +77,24 @@ def build_paths(file_name: str, section: str) -> List[Tuple[str, str]]:
         build_list = list(map(lambda i: i.strip(), config.get(section, entry).split(",")))
         for file in build_list:
             if file not in available_files:
-                skipped_hosts[entry] = config[section][entry]
-    if skipped_hosts:
-        print("\n*WARNING* Path does not exist in \"CONFIGURATION\" for the following host(s), and has been skipped:")
-        for entry in skipped_hosts:
-            text = entry
-            if len(text) > 20:
-                text = entry[:17] + "..."
-            print("\t", text.ljust(20), "=", skipped_hosts[entry])
-        input("Press [Enter] key to acknowledge...")
-    return retrieved_files
+                skipped_options[entry] = config[section][entry]
+    return skipped_options, retrieved_files
 
 
-def add_new_build(file_name: str):
+def add_new_build(section: str, options: OrderedDict[str, str]):
     """
     Add a new build configuration.
 
-    :param file_name: The configuration file to save into.
+    :param section: The new build's name.
+    :param options: The options for the new build.
     """
     config = configparser.ConfigParser()
-    config.read(file_name)
-
-    while True:
-        build_title = input("Please enter a build name: ")
-        if not config.has_section(build_title):
-            break
-        print("The build name already exist!")
-    build_options = __create_dict(file_name)
-    print("Saving [%s] into the config file..." % build_title)
-    with open(os.path.join(file_name), "a") as config_file:
+    config.read(setup.get_config())
+    with open(os.path.join(setup.get_config()), "a") as config_file:
         config = configparser.ConfigParser()
-        config.add_section(build_title)
-        config[build_title] = build_options
+        config.add_section(section)
+        config[section] = options
         config.write(config_file)
-        config_file.close()
-        print("New build configuration saved.")
 
 
 def remove_build(file_name: str):
@@ -249,36 +227,6 @@ def __convert_to_filenames(config: configparser.ConfigParser, entries: List[int]
     for entry in entries:
         files += options[entry - 1] + ", "
     return files.rstrip(", ")
-
-
-def __print_options(config: configparser.ConfigParser, section: str, numbered: bool = False):
-    """
-    Helper method to display all of the options in a section.
-
-    :param config: The configuration file to use.
-    :param section: The build name to use.
-    :param numbered: True if the list should be numbered, otherwise false.
-    """
-    try:
-        options = config.options(section)
-        # Iterate through the entries and create a list that contains the absolute paths to all associated files.
-        if options:
-            for entry in options:
-                text = entry
-                if len(text) > 20:
-                    text = entry[:17] + "..."
-                if numbered:
-                    print("\t", (str((options.index(entry) + 1)) + ").").ljust(5), text.ljust(20), "=",
-                          config.get(section, entry))
-                else:
-                    print("\t", text.ljust(20), "=", config.get(section, entry))
-        else:
-            print("Section [%s] has no options!" % section)
-            raise EmptySectionError
-    except configparser.NoSectionError:
-        # The section does not exist in the file-list.ini, rethrowing!
-        print("The section [%s] does not exist in file-list.ini!" % section)
-        raise
 
 
 def __is_value_valid_int(value: str, maximum: int) -> bool:

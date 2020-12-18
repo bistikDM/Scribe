@@ -62,7 +62,7 @@ def update_file_list(absolute_path: str = project_root, file_name: str = file_li
     :param absolute_path: The location the file will be created.
     :param file_name: The name of the configuration file.
     """
-    print("Updating file list...")
+    # print("Updating file list...")
     __create_file_list_config(absolute_path, file_name)
 
 
@@ -77,7 +77,7 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
     :param host_names: The default host names to use.
     :return: The newly created configuration file's path.
     """
-    print("Creating base config file.")
+    # print("Creating base config file.")
 
     # Use default dictionary if none is given.
     if configuration is None:
@@ -100,7 +100,7 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
     with open(os.path.join(absolute_path, file_name), "w") as config_file:
         config.write(config_file)
         config_file.close()
-        print("Base config file created.")
+        # print("Base config file created.")
 
     # Create a new file list if it does not exist.
     file_list_config_file = Path(str(os.path.join(absolute_path, file_list_config_name)))
@@ -119,12 +119,12 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
     """
     config = configparser.ConfigParser()
     config[CONFIGURATION_SECTION] = file_list_default
-    print("Discovering files, this may take a while...")
+    # print("Discovering files, this may take a while...")
 
     # Crawling block.
     # Iterate over a list created out of the base_directory option.
     for base in filter(None, map(lambda x: x.strip(), config.get(CONFIGURATION_SECTION, "base_directory").split(","))):
-        print("Crawling %s..." % base)
+        # print("Crawling %s..." % base)
         os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
         # Start crawling from the root directory + base, / for Linux and C:\ for Windows.
         # e.g. /dev1 for Linux, C:\dev1 for Windows.
@@ -149,4 +149,4 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
     with open(os.path.join(absolute_path, file_name), "w") as config_file:
         config.write(config_file)
         config_file.close()
-        print("File list compiled.")
+        # print("File list compiled.")
