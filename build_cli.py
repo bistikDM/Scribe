@@ -169,6 +169,11 @@ def edit_build(file_name: str):
         print("Aborting operation.")
 
 
+def cherry_pick(file_name: str):
+    # TODO: Allow user to pick a certain option from a section to copy.
+    pass
+
+
 def __create_dict(file_name: str) -> Dict[str, str]:
     """
     Create a dictionary from user's input.
@@ -184,19 +189,40 @@ def __create_dict(file_name: str) -> Dict[str, str]:
     new_build = {}
     confirm = False
     print("\n*Enter either a comma separated value of multiple files or a single file*")
+    print("*e.g. 1 for a single file or 1, 3, 5 for multiple files.*")
 
     while not confirm:
         for key in default:
             if default.get(key) == "True":
                 try:
-                    print("\n Selecting %s:" % key)
-                    __print_options(file_list_config, key, numbered=True)
-                    entry = input("Please enter value for option [%s]: " % key)
-                    entry.strip()
-                    new_build[key] = entry
-                    # TODO: Error checking for OOB values!
+                    valid = False
+                    while not valid:
+                        print("\n Selecting %s:" % key)
+                        __print_options(file_list_config, key, numbered=True)
+                        raw_entry = input("Please enter value for option [%s]: " % key)
+                        if raw_entry.strip():
+                            # Validating entries.
+                            section_size = len(file_list_config.options(key))
+                            processed_entries = list(filter(None, map(lambda x: x.strip(), raw_entry.split(","))))
+                            checked_entries = list(
+                                map(lambda x: __is_value_valid_int(x, section_size), processed_entries))
+                            if False in checked_entries:
+                                print("Option [%s] contains an invalid entry!" % key)
+                                valid = False
+                            else:
+                                valid = True
+                        else:
+                            # Assume blank entries are valid.
+                            valid = True
+                        new_build[key] = raw_entry
                 except (configparser.NoSectionError, EmptySectionError) as e:
                     print("Skipping [%s]..." % key)
+        for entry in new_build:
+            # Convert numerical entries into valid file names.
+            value = new_build[entry].strip()
+            if value:
+                processed_values = list(map(lambda x: int(x.strip()), value.split(",")))
+                new_build[entry] = __convert_to_filenames(file_list_config, processed_values, entry)
         print("\nPlease confirm the selected options: ")
         for entry in new_build:
             text = entry
@@ -209,8 +235,20 @@ def __create_dict(file_name: str) -> Dict[str, str]:
     return new_build
 
 
-def __convert_to_filenames(build_list: Dict[str, str]) -> Dict[str, str]:
-    pass
+def __convert_to_filenames(config: configparser.ConfigParser, entries: List[int], section: str) -> str:
+    """
+    Helper method to convert numerical values to valid file names found in the configuration file.
+
+    :param config: The configuration file to use.
+    :param entries: A list of numerical values.
+    :param section: The section to use from the configuration file.
+    :return: A comma delimited string containing filename(s) retrieved from the configuration file.
+    """
+    options = config.options(section)
+    files = ""
+    for entry in entries:
+        files += options[entry - 1] + ", "
+    return files.rstrip(", ")
 
 
 def __print_options(config: configparser.ConfigParser, section: str, numbered: bool = False):
@@ -238,11 +276,31 @@ def __print_options(config: configparser.ConfigParser, section: str, numbered: b
             print("Section [%s] has no options!" % section)
             raise EmptySectionError
     except configparser.NoSectionError:
-        # The section does not exist in the file-list.ini!
+        # The section does not exist in the file-list.ini, rethrowing!
         print("The section [%s] does not exist in file-list.ini!" % section)
         raise
-    except EmptySectionError:
-        raise
+
+
+def __is_value_valid_int(value: str, maximum: int) -> bool:
+    """
+    Helper method to determine if an input is a valid int value within the range of (0, maximum].
+
+    :param value: The value to check.
+    :param maximum: The inclusive maximum int value to check.
+    :return: True if it is an int and within the specified values, otherwise False if it is not within the specified
+             value or it is not an int.
+    """
+    try:
+        if int(value):
+            if 0 < int(value) <= maximum:
+                return True
+            else:
+                return False
+        else:
+            return False
+    except ValueError:
+        # Definitely not an int.
+        return False
 
 
 class EmptySectionError(Exception):

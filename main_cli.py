@@ -2,15 +2,10 @@ import os
 import shutil
 from pathlib import Path
 
-import build
+import build_cli
 import copy
 import setup
 import test_env
-
-
-def cherry_pick(file_name: str):
-    # TODO: Allow user to pick a certain option from a section to copy.
-    pass
 
 
 def print_storage():
@@ -30,7 +25,7 @@ def main():
         print("\t3). Add a build.")
         print("\t4). Edit a build.")
         print("\t5). Cherry-pick from build (Not implemented yet).")
-        print("\t6). Add new files (Not implemented yet).")
+        print("\t6). Rebuild file-list.ini.")
         # Will try to associate files to build options and print
         # what's not being used as well as what files are missing for a build.
         print("\t7). Print report (Not implemented yet).")
@@ -40,9 +35,9 @@ def main():
         try:
             selection = input("Enter a number: ")
             if selection == "1":
-                selected_build = build.select_build(configuration_file)
-                if build:
-                    files = build.build_paths(configuration_file, selected_build)
+                selected_build = build_cli.select_build(configuration_file)
+                if selected_build:
+                    files = build_cli.build_paths(configuration_file, selected_build)
                     destination = str(os.path.join(setup.project_root, "test-destination"))
                     if not Path(destination).exists():
                         os.makedirs(destination)
@@ -51,11 +46,15 @@ def main():
                         print("\t %s" % file[1])
                     copy.copy_files(files, destination)
             elif selection == "2":
-                build.remove_build(configuration_file)
+                build_cli.remove_build(configuration_file)
             elif selection == "3":
-                build.add_new_build(configuration_file)
+                build_cli.add_new_build(configuration_file)
             elif selection == "4":
-                build.edit_build(configuration_file)
+                build_cli.edit_build(configuration_file)
+            elif selection == "5":
+                build_cli.cherry_pick(configuration_file)
+            elif selection == "6":
+                setup.update_file_list(setup.project_root, setup.file_list_config_name)
             elif selection == "9":
                 shutil.rmtree(setup.project_root)
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))

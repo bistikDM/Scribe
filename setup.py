@@ -123,7 +123,8 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
 
     # Crawling block.
     # Iterate over a list created out of the base_directory option.
-    for base in map(lambda x: x.strip(), config.get(CONFIGURATION_SECTION, "base_directory").split(",")):
+    for base in filter(None, map(lambda x: x.strip(), config.get(CONFIGURATION_SECTION, "base_directory").split(","))):
+        print("Crawling %s..." % base)
         os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
         # Start crawling from the root directory + base, / for Linux and C:\ for Windows.
         # e.g. /dev1 for Linux, C:\dev1 for Windows.
