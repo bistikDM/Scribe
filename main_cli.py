@@ -7,7 +7,7 @@ from typing import List, Union, OrderedDict
 
 import build
 import copy
-import setup
+import initialization
 import test_env
 
 
@@ -36,12 +36,12 @@ def select_build() -> str:
         selection = sections[int(index) - 1]
         print("\nBuild [%s] selected:" % selection)
         try:
-            options = build.get_options(setup.get_config(), selection)
+            options = build.get_options(initialization.get_config(), selection)
             display_entries(options)
         except build.EmptySectionError:
             print("Section [%s] has no options!" % selection)
         except configparser.NoSectionError:
-            print("The section [%s] does not exist in [%s]!" % (selection, setup.get_config()))
+            print("The section [%s] does not exist in [%s]!" % (selection, initialization.get_config()))
         confirm = input("Enter 'y/Y' to confirm selection: ")
         if confirm in ["y", "Y"]:
             break
@@ -86,9 +86,9 @@ def get_new_build_option() -> OrderedDict[str, str]:
 
     :return: An ordered dictionary based on CONFIGURATION section and user's input.
     """
-    config_options = build.get_options(setup.get_config(), setup.CONFIGURATION_SECTION)
-    file_list_path = config_options[setup.file_list_config_name]
-    host_name_options = build.get_options(setup.get_config(), setup.HOST_NAMES_SECTION)
+    config_options = build.get_options(initialization.get_config(), initialization.CONFIGURATION_SECTION)
+    file_list_path = config_options[initialization.file_list_config_name]
+    host_name_options = build.get_options(initialization.get_config(), initialization.HOST_NAMES_SECTION)
     new_build = collections.OrderedDict()
     confirm = False
     print("\n*Enter either a comma separated value of multiple files or a single file*")
@@ -168,7 +168,7 @@ def is_value_valid_int(value: str, maximum: int) -> bool:
 def main():
     # TESTING
     test_env.create_test_storage_environment()
-    configuration_file = setup.get_config()
+    configuration_file = initialization.get_config()
     print("Configuration file:", configuration_file)
     while True:
         print("***TEST MENU***")
@@ -193,10 +193,10 @@ def main():
                     skipped_options, files = build.build_paths(selected_build)
                     if skipped_options:
                         print("\n*WARNING* File association does not exist in [%s] for the following" 
-                              " option(s), and has been skipped:" % setup.file_list_config_name)
+                              " option(s), and has been skipped:" % initialization.file_list_config_name)
                         display_entries(skipped_options)
                         input("Press [Enter] key to acknowledge...")
-                    destination = str(os.path.join(setup.project_root, "test-destination"))
+                    destination = str(os.path.join(initialization.project_root, "test-destination"))
                     if not Path(destination).exists():
                         os.makedirs(destination)
                     print("Copying the following files to %s:" % destination)
@@ -243,7 +243,7 @@ def main():
                 # Cherry pick a build.
                 selected_build = select_build()
                 if selected_build:
-                    build_options = build.get_options(setup.get_config(), selected_build)
+                    build_options = build.get_options(initialization.get_config(), selected_build)
                     display_entries(build_options, numbered=True)
                     index = None
                     while not index:
@@ -256,7 +256,7 @@ def main():
                     skipped_options, files = build.build_paths(selected_build)
                     if selection not in skipped_options:
                         filtered_files = list(filter(lambda x: x[0] == selection, files))
-                        destination = str(os.path.join(setup.project_root, "test-destination"))
+                        destination = str(os.path.join(initialization.project_root, "test-destination"))
                         if not Path(destination).exists():
                             os.makedirs(destination)
                         print("Copying the following files to %s:" % destination)
@@ -266,9 +266,9 @@ def main():
                     else:
                         print("Could not located the file associated with the selected option [%s]..." % selection)
             elif selection == "6":
-                setup.update_file_list(setup.project_root, setup.file_list_config_name)
+                initialization.update_file_list(initialization.project_root, initialization.file_list_config_name)
             elif selection == "9":
-                shutil.rmtree(setup.project_root)
+                shutil.rmtree(initialization.project_root)
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
@@ -279,7 +279,7 @@ def main():
                 pass
         except ValueError:
             pass
-    shutil.rmtree(setup.project_root)
+    shutil.rmtree(initialization.project_root)
     shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
     shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
     shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))

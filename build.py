@@ -3,7 +3,7 @@ import configparser
 import os
 from typing import List, Tuple, OrderedDict
 
-import setup
+import initialization
 
 
 def get_builds() -> List[str]:
@@ -14,10 +14,10 @@ def get_builds() -> List[str]:
              "CONFIGURATION" and "HOST_NAMES" section.
     """
     config = configparser.ConfigParser()
-    config.read(setup.get_config())
+    config.read(initialization.get_config())
     sections = config.sections()
-    sections.remove(setup.CONFIGURATION_SECTION)
-    sections.remove(setup.HOST_NAMES_SECTION)
+    sections.remove(initialization.CONFIGURATION_SECTION)
+    sections.remove(initialization.HOST_NAMES_SECTION)
     return sections
 
 
@@ -53,12 +53,12 @@ def build_paths(section: str) -> Tuple[OrderedDict[str, str], List[Tuple[str, st
              and absolute paths pairings of all files described in the section's option.
     """
     config = configparser.ConfigParser()
-    config.read(setup.get_config())
+    config.read(initialization.get_config())
     subsection = config[section]
     retrieved_files = []
     skipped_options = collections.OrderedDict()
     file_list = configparser.ConfigParser()
-    file_list.read(config.get(setup.CONFIGURATION_SECTION, setup.file_list_config_name))
+    file_list.read(config.get(initialization.CONFIGURATION_SECTION, initialization.file_list_config_name))
 
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
@@ -88,8 +88,8 @@ def add_new_build(section: str, options: OrderedDict[str, str]):
     :param options: The options for the new build.
     """
     config = configparser.ConfigParser()
-    config.read(setup.get_config())
-    with open(os.path.join(setup.get_config()), "a") as config_file:
+    config.read(initialization.get_config())
+    with open(os.path.join(initialization.get_config()), "a") as config_file:
         config = configparser.ConfigParser()
         config.add_section(section)
         config[section] = options
@@ -103,9 +103,9 @@ def remove_build(build: str):
     :param build: The build to remove from the configuration file.
     """
     config = configparser.ConfigParser()
-    config.read(setup.get_config())
+    config.read(initialization.get_config())
     config.remove_section(build)
-    with open(setup.get_config(), "w") as config_file:
+    with open(initialization.get_config(), "w") as config_file:
         config.write(config_file)
         config_file.close()
 
@@ -119,12 +119,12 @@ def edit_build(build: str, new_options: OrderedDict[str, str]):
                         old option's value.
     """
     config = configparser.ConfigParser()
-    config.read(setup.get_config())
-    old_options = get_options(setup.get_config(), build)
+    config.read(initialization.get_config())
+    old_options = get_options(initialization.get_config(), build)
     for k, v in old_options.items():
         if k in new_options and new_options.get(k).strip():
             config[build][k] = new_options.get(k)
-    with open(setup.get_config(), "w") as f:
+    with open(initialization.get_config(), "w") as f:
         config.write(f)
 
 
