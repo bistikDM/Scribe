@@ -20,7 +20,7 @@ def create_test_storage_environment():
         if not Path(x).exists():
             os.makedirs(x)
     for file in test_files:
-        random_index = random.randrange(len(test_directory) - 1)
+        random_index = random.randrange(len(test_directory))
         with open(os.path.join(test_directory[random_index], file), 'wb') as f:
             f.write(os.urandom(16 * 1024 * 1024))  # 16 MB fake files.
             # f.write(os.urandom(128 * 1024)) # 128 KB fake files.

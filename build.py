@@ -57,27 +57,26 @@ def build_paths(section: str) -> Tuple[OrderedDict[str, str], List[Tuple[str, st
     subsection = config[section]
     retrieved_files = []
     skipped_options = collections.OrderedDict()
-
     file_list = configparser.ConfigParser()
-    file_list.read(config.get(setup.CONFIGURATION_SECTION, "file_list"))
-    file_list_sections = file_list.sections()
+    file_list.read(config.get(setup.CONFIGURATION_SECTION, setup.file_list_config_name))
 
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
     for entry in subsection:
         # The files are in a csv format while the guide will be a whole directory containing multiple documents.
         build_list = list(map(lambda i: i.strip(), config.get(section, entry).split(",")))
         for file in build_list:
-            for directory in file_list_sections:
-                if file_list.has_option(directory, file):
-                    for i in file_list.get(directory, file).split(","):
-                        retrieved_files.append((directory, i.strip()))
-
+            if file_list.has_option(entry, file):
+                for i in file_list.get(entry, file).split(","):
+                    retrieved_files.append((entry, i.strip()))
     available_files = list(map(lambda i: os.path.split(i[1])[1], retrieved_files))
     for entry in subsection:
         build_list = list(map(lambda i: i.strip(), config.get(section, entry).split(",")))
         for file in build_list:
             if file not in available_files:
-                skipped_options[entry] = config[section][entry]
+                if entry in skipped_options.keys():
+                    skipped_options[entry] = str(skipped_options.get(entry)) + ", " + file
+                else:
+                    skipped_options[entry] = file
     return skipped_options, retrieved_files
 
 
@@ -122,7 +121,7 @@ def edit_build(build: str, new_options: OrderedDict[str, str]):
     config = configparser.ConfigParser()
     config.read(setup.get_config())
     old_options = get_options(setup.get_config(), build)
-    for k, v in old_options:
+    for k, v in old_options.items():
         if k in new_options and new_options.get(k).strip():
             config[build][k] = new_options.get(k)
     with open(setup.get_config(), "w") as f:

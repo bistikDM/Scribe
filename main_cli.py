@@ -29,15 +29,11 @@ def select_build() -> str:
         print("\nBuild list:")
         display_entries(sections, numbered=True)
         while not index:
-            try:
-                index = int(input("Enter a build number: "))
-                if index < len(sections) or index > len(sections):
-                    index = None
-                    print("Invalid selection!")
-            except ValueError:
-                # User entered a non-integer value, looping back.
-                pass
-        selection = sections[index - 1]
+            index = input("Enter a build number: ")
+            if not is_value_valid_int(index, len(sections)):
+                index = None
+                print("Invalid selection!")
+        selection = sections[int(index) - 1]
         print("\nBuild [%s] selected:" % selection)
         try:
             options = build.get_options(setup.get_config(), selection)
@@ -132,7 +128,8 @@ def get_new_build_option() -> OrderedDict[str, str]:
             # Convert numerical entries into valid file names.
             value = new_build[entry].strip()
             if value:
-                processed_values = list(map(lambda x: int(x.strip()), value.split(",")))
+                processed_values = list(filter(None, map(lambda x: x.strip(), value.split(","))))
+                processed_values = list(map(int, processed_values))
                 new_build[entry] = build.convert_to_filenames(file_list_path, processed_values, entry)
         print("\nPlease confirm the selected options: ")
         for entry in new_build:
@@ -195,7 +192,7 @@ def main():
                 if selected_build:
                     skipped_options, files = build.build_paths(selected_build)
                     if skipped_options:
-                        print("\n*WARNING* File association does not exist in [%s] for the following" +
+                        print("\n*WARNING* File association does not exist in [%s] for the following" 
                               " option(s), and has been skipped:" % setup.file_list_config_name)
                         display_entries(skipped_options)
                         input("Press [Enter] key to acknowledge...")
@@ -234,7 +231,7 @@ def main():
                 # Edit a build.
                 selected_build = select_build()
                 if selected_build:
-                    confirm = input("Editing build [%s], enter the build name exactly to confirm" % selected_build)
+                    confirm = input("Editing build [%s], enter the build name exactly to confirm: " % selected_build)
                     if confirm.strip() == selected_build:
                         print("Leave blank to use current value(s), otherwise enter new values...")
                         new_value = get_new_build_option()
@@ -257,14 +254,17 @@ def main():
                     selection = list(build_options.keys())[int(index) - 1]
                     print("\nOption [%s] selected:" % selection)
                     skipped_options, files = build.build_paths(selected_build)
-                    filtered_files = list(filter(lambda x: x[0] == selection, files))
-                    destination = str(os.path.join(setup.project_root, "test-destination"))
-                    if not Path(destination).exists():
-                        os.makedirs(destination)
-                    print("Copying the following files to %s:" % destination)
-                    for file in filtered_files:
-                        print("\t %s" % file[1])
-                    copy.copy_files(filtered_files, destination)
+                    if selection not in skipped_options:
+                        filtered_files = list(filter(lambda x: x[0] == selection, files))
+                        destination = str(os.path.join(setup.project_root, "test-destination"))
+                        if not Path(destination).exists():
+                            os.makedirs(destination)
+                        print("Copying the following files to %s:" % destination)
+                        for file in filtered_files:
+                            print("\t %s" % file[1])
+                        copy.copy_files(filtered_files, destination)
+                    else:
+                        print("Could not located the file associated with the selected option [%s]..." % selection)
             elif selection == "6":
                 setup.update_file_list(setup.project_root, setup.file_list_config_name)
             elif selection == "9":
