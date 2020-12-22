@@ -111,34 +111,22 @@ def remove_build(build: str):
         config_file.close()
 
 
-def edit_build(file_name: str):
+def edit_build(build: str, new_options: OrderedDict[str, str]):
     """
     Edits an existing section (build) in the configuration file.
 
-    :param file_name: The configuration file to use.
+    :param build: The build to edit.
+    :param new_options: The new options for the edited build, if the value is blank then it will reuse the
+                        old option's value.
     """
     config = configparser.ConfigParser()
-    config.read(file_name)
-    build = select_build(file_name)
-    confirm = input("Editing build [%s], enter the build name exactly to confirm: " % build)
-    if confirm.strip() == build:
-        while True:
-            options = config.options(build)
-            print("Leave blank to use current value(s), otherwise enter new values...")
-            new_value = __create_dict(file_name)
-            for option in options:
-                if option in new_value and new_value[option].strip():
-                    config[build][option] = new_value.get(option)
-            __print_options(config, build)
-            selection = input("Enter 'y/Y' to confirm entries: ")
-            if selection in ["y", "Y"]:
-                with open(file_name, "w") as f:
-                    config.write(f)
-                    f.close()
-                    print("Build [%s]'s options changed!" % build)
-                break
-    else:
-        print("Aborting operation.")
+    config.read(setup.get_config())
+    old_options = get_options(setup.get_config(), build)
+    for k, v in old_options:
+        if k in new_options and new_options.get(k).strip():
+            config[build][k] = new_options.get(k)
+    with open(setup.get_config(), "w") as f:
+        config.write(f)
 
 
 def cherry_pick(file_name: str):

@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import List, Union, OrderedDict
 
-import build_cli
+import build
 import copy
 import setup
 import test_env
@@ -19,7 +19,7 @@ def select_build() -> str:
     """
     index = None
     selection = None
-    sections = build_cli.get_builds()
+    sections = build.get_builds()
 
     # Get user's selection.
     while True:
@@ -40,9 +40,9 @@ def select_build() -> str:
         selection = sections[index - 1]
         print("\nBuild [%s] selected:" % selection)
         try:
-            options = build_cli.get_options(setup.get_config(), selection)
+            options = build.get_options(setup.get_config(), selection)
             display_entries(options)
-        except build_cli.EmptySectionError:
+        except build.EmptySectionError:
             print("Section [%s] has no options!" % selection)
         except configparser.NoSectionError:
             print("The section [%s] does not exist in [%s]!" % (selection, setup.get_config()))
@@ -90,9 +90,9 @@ def get_new_build_option() -> OrderedDict[str, str]:
 
     :return: An ordered dictionary based on CONFIGURATION section and user's input.
     """
-    config_options = build_cli.get_options(setup.get_config(), setup.CONFIGURATION_SECTION)
+    config_options = build.get_options(setup.get_config(), setup.CONFIGURATION_SECTION)
     file_list_path = config_options[setup.file_list_config_name]
-    host_name_options = build_cli.get_options(setup.get_config(), setup.HOST_NAMES_SECTION)
+    host_name_options = build.get_options(setup.get_config(), setup.HOST_NAMES_SECTION)
     new_build = collections.OrderedDict()
     confirm = False
     print("\n*Enter either a comma separated value of multiple files or a single file*")
@@ -102,7 +102,7 @@ def get_new_build_option() -> OrderedDict[str, str]:
             if v.strip() == "True":
                 try:
                     valid = False
-                    current_options = build_cli.get_options(file_list_path, k)
+                    current_options = build.get_options(file_list_path, k)
                     while not valid:
                         print("\n Selecting %s:" % k)
                         display_entries(current_options, numbered=True)
@@ -122,8 +122,8 @@ def get_new_build_option() -> OrderedDict[str, str]:
                             # Assume blank entries are valid.
                             valid = True
                         new_build[k] = raw_entry
-                except (configparser.NoSectionError, build_cli.EmptySectionError) as e:
-                    if isinstance(e, build_cli.EmptySectionError):
+                except (configparser.NoSectionError, build.EmptySectionError) as e:
+                    if isinstance(e, build.EmptySectionError):
                         print("Section [%s] has no options!" % k)
                     else:
                         print("The section [%s] does not exist in [%s]!" % (k, file_list_path))
@@ -133,7 +133,7 @@ def get_new_build_option() -> OrderedDict[str, str]:
             value = new_build[entry].strip()
             if value:
                 processed_values = list(map(lambda x: int(x.strip()), value.split(",")))
-                new_build[entry] = build_cli.convert_to_filenames(file_list_path, processed_values, entry)
+                new_build[entry] = build.convert_to_filenames(file_list_path, processed_values, entry)
         print("\nPlease confirm the selected options: ")
         for entry in new_build:
             text = entry
@@ -193,7 +193,7 @@ def main():
                 # Select a build.
                 selected_build = select_build()
                 if selected_build:
-                    skipped_options, files = build_cli.build_paths(selected_build)
+                    skipped_options, files = build.build_paths(selected_build)
                     if skipped_options:
                         print("\n*WARNING* File association does not exist in [%s] for the following" +
                               " option(s), and has been skipped:" % setup.file_list_config_name)
@@ -214,13 +214,13 @@ def main():
                         "Removing [%s] from the configuration file, enter the build name exactly to confirm: " %
                         selected_build)
                     if confirm.strip() == selected_build:
-                        build_cli.remove_build(selected_build)
+                        build.remove_build(selected_build)
                         print("Build [%s] has been removed from the configuration." % selected_build)
                     else:
                         print("Aborting operation.")
             elif selection == "3":
                 # Add a build.
-                sections = build_cli.get_builds()
+                sections = build.get_builds()
                 while True:
                     build_title = input("Please enter a build name: ").strip()
                     if build_title not in sections:
@@ -228,10 +228,20 @@ def main():
                     print("The build name already exist!")
                 build_options = get_new_build_option()
                 print("Saving [%s] into the config file..." % build_title)
-                build_cli.add_new_build(build_title, build_options)
+                build.add_new_build(build_title, build_options)
                 print("New build configuration saved.")
             elif selection == "4":
-                edit_build(configuration_file)
+                # Edit a build.
+                selected_build = select_build()
+                if selected_build:
+                    confirm = input("Editing build [%s], enter the build name exactly to confirm" % selected_build)
+                    if confirm.strip() == selected_build:
+                        print("Leave blank to use current value(s), otherwise enter new values...")
+                        new_value = get_new_build_option()
+                        build.edit_build(selected_build, new_value)
+                        print("Build [%s]'s options changed!" % selected_build)
+                else:
+                    print("Aborting operation.")
             elif selection == "5":
                 cherry_pick(configuration_file)
             elif selection == "6":
