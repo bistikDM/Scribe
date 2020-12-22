@@ -129,11 +129,6 @@ def edit_build(build: str, new_options: OrderedDict[str, str]):
         config.write(f)
 
 
-def cherry_pick(file_name: str):
-    # TODO: Allow user to pick a certain option from a section to copy.
-    pass
-
-
 def convert_to_filenames(config_file: str, entries: List[int], section: str) -> str:
     """
     Helper method to convert numerical values to valid file names found in the configuration file.

@@ -179,7 +179,7 @@ def main():
         print("\t2). Remove a build.")
         print("\t3). Add a build.")
         print("\t4). Edit a build.")
-        print("\t5). Cherry-pick from build (Not implemented yet).")
+        print("\t5). Cherry-pick from build.")
         print("\t6). Rebuild file-list.ini.")
         # Will try to associate files to build options and print
         # what's not being used as well as what files are missing for a build.
@@ -243,7 +243,28 @@ def main():
                 else:
                     print("Aborting operation.")
             elif selection == "5":
-                cherry_pick(configuration_file)
+                # Cherry pick a build.
+                selected_build = select_build()
+                if selected_build:
+                    build_options = build.get_options(setup.get_config(), selected_build)
+                    display_entries(build_options, numbered=True)
+                    index = None
+                    while not index:
+                        index = input("Enter an option number: ")
+                        if not is_value_valid_int(index, len(build_options)):
+                            index = None
+                            print("Invalid selection!")
+                    selection = list(build_options.keys())[int(index) - 1]
+                    print("\nOption [%s] selected:" % selection)
+                    skipped_options, files = build.build_paths(selected_build)
+                    filtered_files = list(filter(lambda x: x[0] == selection, files))
+                    destination = str(os.path.join(setup.project_root, "test-destination"))
+                    if not Path(destination).exists():
+                        os.makedirs(destination)
+                    print("Copying the following files to %s:" % destination)
+                    for file in filtered_files:
+                        print("\t %s" % file[1])
+                    copy.copy_files(filtered_files, destination)
             elif selection == "6":
                 setup.update_file_list(setup.project_root, setup.file_list_config_name)
             elif selection == "9":
@@ -252,7 +273,6 @@ def main():
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
                 test_env.create_test_storage_environment()
-                configuration_file = setup.get_config()
             elif selection == "0":
                 break
             else:
