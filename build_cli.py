@@ -1,7 +1,7 @@
 import collections
 import configparser
 import os
-from typing import List, Dict, Tuple, OrderedDict
+from typing import List, Tuple, OrderedDict
 
 import setup
 
@@ -25,7 +25,7 @@ def get_options(config_file: str, section: str) -> OrderedDict[str, str]:
     """
     Retrieves all the options in a section of a configuration file.
 
-    :param config_file: The configuration file to use.
+    :param config_file: The full path to the configuration file to use.
     :param section: The section name to use.
     :return: An ordered {option: option value}, may raise a configparser.NoSectionError or EmptySectionError.
     """
@@ -97,24 +97,18 @@ def add_new_build(section: str, options: OrderedDict[str, str]):
         config.write(config_file)
 
 
-def remove_build(file_name: str):
+def remove_build(build: str):
     """
     Remove a section (build) from the configuration file.
 
-    :param file_name: The configuration file to use.
+    :param build: The build to remove from the configuration file.
     """
     config = configparser.ConfigParser()
-    config.read(file_name)
-    build = select_build(file_name)
-    confirm = input("Removing [%s] from the configuration file, enter the build name exactly to confirm: " % build)
-    if confirm.strip() == build:
-        config.remove_section(build)
-        with open(file_name, "w") as config_file:
-            config.write(config_file)
-            config_file.close()
-            print("Build [%s] has been removed from the configuration." % build)
-    else:
-        print("Aborting operation.")
+    config.read(setup.get_config())
+    config.remove_section(build)
+    with open(setup.get_config(), "w") as config_file:
+        config.write(config_file)
+        config_file.close()
 
 
 def edit_build(file_name: str):
@@ -152,103 +146,22 @@ def cherry_pick(file_name: str):
     pass
 
 
-def __create_dict(file_name: str) -> Dict[str, str]:
-    """
-    Create a dictionary from user's input.
-
-    :param file_name: The configuration file to get the CONFIGURATION section for keys.
-    :return: A dictionary based on CONFIGURATION section and user's input.
-    """
-    config = configparser.ConfigParser()
-    config.read(file_name)
-    default = config[setup.HOST_NAMES_SECTION]
-    file_list_config = configparser.ConfigParser()
-    file_list_config.read(os.path.join(setup.project_root, setup.file_list_config_name))
-    new_build = {}
-    confirm = False
-    print("\n*Enter either a comma separated value of multiple files or a single file*")
-    print("*e.g. 1 for a single file or 1, 3, 5 for multiple files.*")
-
-    while not confirm:
-        for key in default:
-            if default.get(key) == "True":
-                try:
-                    valid = False
-                    while not valid:
-                        print("\n Selecting %s:" % key)
-                        __print_options(file_list_config, key, numbered=True)
-                        raw_entry = input("Please enter value for option [%s]: " % key)
-                        if raw_entry.strip():
-                            # Validating entries.
-                            section_size = len(file_list_config.options(key))
-                            processed_entries = list(filter(None, map(lambda x: x.strip(), raw_entry.split(","))))
-                            checked_entries = list(
-                                map(lambda x: __is_value_valid_int(x, section_size), processed_entries))
-                            if False in checked_entries:
-                                print("Option [%s] contains an invalid entry!" % key)
-                                valid = False
-                            else:
-                                valid = True
-                        else:
-                            # Assume blank entries are valid.
-                            valid = True
-                        new_build[key] = raw_entry
-                except (configparser.NoSectionError, EmptySectionError) as e:
-                    print("Skipping [%s]..." % key)
-        for entry in new_build:
-            # Convert numerical entries into valid file names.
-            value = new_build[entry].strip()
-            if value:
-                processed_values = list(map(lambda x: int(x.strip()), value.split(",")))
-                new_build[entry] = __convert_to_filenames(file_list_config, processed_values, entry)
-        print("\nPlease confirm the selected options: ")
-        for entry in new_build:
-            text = entry
-            if len(text) > 20:
-                text = entry[:17] + "..."
-            print("\t", text.ljust(20), "=", new_build[entry])
-        selection = input("Enter 'y/Y' to confirm entries: ")
-        if selection in ["y", "Y"]:
-            confirm = True
-    return new_build
-
-
-def __convert_to_filenames(config: configparser.ConfigParser, entries: List[int], section: str) -> str:
+def convert_to_filenames(config_file: str, entries: List[int], section: str) -> str:
     """
     Helper method to convert numerical values to valid file names found in the configuration file.
 
-    :param config: The configuration file to use.
+    :param config_file: The full path to the configuration file to use.
     :param entries: A list of numerical values.
     :param section: The section to use from the configuration file.
     :return: A comma delimited string containing filename(s) retrieved from the configuration file.
     """
+    config = configparser.ConfigParser()
+    config.read(config_file)
     options = config.options(section)
     files = ""
     for entry in entries:
         files += options[entry - 1] + ", "
     return files.rstrip(", ")
-
-
-def __is_value_valid_int(value: str, maximum: int) -> bool:
-    """
-    Helper method to determine if an input is a valid int value within the range of (0, maximum].
-
-    :param value: The value to check.
-    :param maximum: The inclusive maximum int value to check.
-    :return: True if it is an int and within the specified values, otherwise False if it is not within the specified
-             value or it is not an int.
-    """
-    try:
-        if int(value):
-            if 0 < int(value) <= maximum:
-                return True
-            else:
-                return False
-        else:
-            return False
-    except ValueError:
-        # Definitely not an int.
-        return False
 
 
 class EmptySectionError(Exception):

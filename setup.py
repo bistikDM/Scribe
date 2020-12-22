@@ -9,7 +9,7 @@ HOST_NAMES_SECTION = "HOST_NAMES"
 base_config_name = "config.ini"
 file_list_config_name = "file-list.ini"
 project_root = str(os.path.join(OS_HOME, "file-picker"))
-base_paths = {"file_list": str(os.path.join(project_root, file_list_config_name))}
+base_paths = {file_list_config_name: str(os.path.join(project_root, file_list_config_name))}
 
 file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
                      "firmware_directory": "firmware",
