@@ -8,3 +8,9 @@ in order to create a deployable build. By using a configuration
 file, the user will be able to select a build version and the 
 script will automatically copy all the specified VM images 
 associated with that build version to a specified destination.
+
+# Get started
+1. `pip install -r requirements.txt` to install required dependecies.
+2. `python main_cli.py` to see how it works.
+3. Optional: `pyinstaller -F main_cli.py` will create an executable that does not need an interpreter or 
+   any modules to run. It will be inside the `dist` directory.

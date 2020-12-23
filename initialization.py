@@ -9,13 +9,13 @@ HOST_NAMES_SECTION = "HOST_NAMES"
 base_config_name = "config.ini"
 file_list_config_name = "file-list.ini"
 project_root = str(os.path.join(OS_HOME, "file-picker"))
-base_paths = {"file_list": str(os.path.join(project_root, file_list_config_name))}
+base_paths = {file_list_config_name: str(os.path.join(project_root, file_list_config_name))}
 
 file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
                      "firmware_directory": "firmware",
                      "network_directory": "network",
                      "images_directory": "volume",
-                     "iso_directory": "ISO_images",
+                     "iso_directory": "iso_images",
                      "config_directory": "configs",
                      "delta_directory:": "deltas",
                      "tools_directory": "tools"}
@@ -23,7 +23,7 @@ file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file
 default_host_names = {"firmware": "True",
                       "network": "True",
                       "volume": "True",
-                      "ISO_images": "True",
+                      "iso_images": "True",
                       "configs": "True",
                       "deltas": "True",
                       "tools": "True"}
@@ -32,7 +32,7 @@ default_host_names = {"firmware": "True",
 test_build = {"firmware": "test_1.1, test_1.2, test_1.3",
               "network": "test_2",
               "volume": "test_3",
-              "ISO_images": "test_4",
+              "iso_images": "test_4",
               "configs": "test_5",
               "deltas": "test_6",
               "tools": "install, test, misc"}
@@ -62,7 +62,6 @@ def update_file_list(absolute_path: str = project_root, file_name: str = file_li
     :param absolute_path: The location the file will be created.
     :param file_name: The name of the configuration file.
     """
-    print("Updating file list...")
     __create_file_list_config(absolute_path, file_name)
 
 
@@ -77,8 +76,6 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
     :param host_names: The default host names to use.
     :return: The newly created configuration file's path.
     """
-    print("Creating base config file.")
-
     # Use default dictionary if none is given.
     if configuration is None:
         configuration = base_paths
@@ -100,7 +97,6 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
     with open(os.path.join(absolute_path, file_name), "w") as config_file:
         config.write(config_file)
         config_file.close()
-        print("Base config file created.")
 
     # Create a new file list if it does not exist.
     file_list_config_file = Path(str(os.path.join(absolute_path, file_list_config_name)))
@@ -119,11 +115,11 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
     """
     config = configparser.ConfigParser()
     config[CONFIGURATION_SECTION] = file_list_default
-    print("Discovering files, this may take a while...")
 
     # Crawling block.
     # Iterate over a list created out of the base_directory option.
-    for base in map(lambda x: x.strip(), config.get(CONFIGURATION_SECTION, "base_directory").split(",")):
+    for base in filter(None, map(lambda x: x.strip(), config.get(CONFIGURATION_SECTION, "base_directory").split(","))):
+        # print("Crawling %s..." % base)
         os_root_and_base = os.path.join(os.path.abspath(os.sep), base)
         # Start crawling from the root directory + base, / for Linux and C:\ for Windows.
         # e.g. /dev1 for Linux, C:\dev1 for Windows.
@@ -148,4 +144,3 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
     with open(os.path.join(absolute_path, file_name), "w") as config_file:
         config.write(config_file)
         config_file.close()
-        print("File list compiled.")
