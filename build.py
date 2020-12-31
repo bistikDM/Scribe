@@ -87,8 +87,6 @@ def add_new_build(section: str, options: OrderedDict[str, str]):
     :param section: The new build's name.
     :param options: The options for the new build.
     """
-    config = configparser.ConfigParser()
-    config.read(initialization.get_config())
     with open(os.path.join(initialization.get_config()), "a") as config_file:
         config = configparser.ConfigParser()
         config.add_section(section)
