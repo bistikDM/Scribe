@@ -168,8 +168,8 @@ def is_value_valid_int(value: str, maximum: int) -> bool:
 def main():
     # TESTING
     test_env.create_test_storage_environment()
-    configuration_file = initialization.get_config()
-    print("Configuration file:", configuration_file)
+    initialization.initialize()
+    print("Configuration file:", initialization.get_config())
     while True:
         print("***TEST MENU***")
         print("\t1). Select a build.")
@@ -266,7 +266,8 @@ def main():
                     else:
                         print("Could not located the file associated with the selected option [%s]..." % selection)
             elif selection == "6":
-                initialization.update_file_list(initialization.project_root, initialization.file_list_config_name)
+                # initialization.create_file_list_config()
+                initialization.crawl_system()
             elif selection == "9":
                 shutil.rmtree(initialization.project_root)
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
