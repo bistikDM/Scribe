@@ -1,24 +1,25 @@
+import collections
 import configparser
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, OrderedDict
 
-OS_HOME = str(os.path.expanduser("~"))
+USER_HOME = str(os.path.expanduser("~"))
 CONFIGURATION_SECTION = "CONFIGURATION"
 HOST_NAMES_SECTION = "HOST_NAMES"
 base_config_name = "config.ini"
 file_list_config_name = "file-list.ini"
-project_root = str(os.path.join(OS_HOME, "file-picker"))
+project_root = str(os.path.join(USER_HOME, "file-picker"))
 base_paths = {file_list_config_name: str(os.path.join(project_root, file_list_config_name))}
 
-file_list_default = {"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
-                     "firmware_directory": "firmware",
-                     "network_directory": "network",
-                     "images_directory": "volume",
-                     "iso_directory": "iso_images",
-                     "config_directory": "configs",
-                     "delta_directory:": "deltas",
-                     "tools_directory": "tools"}
+file_list_default = collections.OrderedDict({"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
+                                             "firmware_directory": "firmware",
+                                             "network_directory": "network",
+                                             "images_directory": "volume",
+                                             "iso_directory": "iso_images",
+                                             "config_directory": "configs",
+                                             "delta_directory:": "deltas",
+                                             "tools_directory": "tools"})
 
 default_host_names = {"firmware": "True",
                       "network": "True",
@@ -38,39 +39,35 @@ test_build = {"firmware": "test_1.1, test_1.2, test_1.3",
               "tools": "install, test, misc"}
 
 
-def get_config(absolute_path: str = project_root, file_name: str = base_config_name) -> str:
+def initialize():
+    """
+    Convenience method to initialize everything at startup.
+
+    :return:
+    """
+    create_config()
+    create_file_list_config()
+    crawl_system()
+
+
+def get_config(path: str = project_root, file_name: str = base_config_name) -> str:
     """
     Retrieves the configuration file path needed.
 
-    :param absolute_path: The path to the configuration file.
+    :param path: The path to the configuration file.
     :param file_name: The name of the configuration file.
     :return: The configuration file path.
     """
-    config_file = Path(str(os.path.join(absolute_path, file_name)))
-
-    # Create a new configuration file if it does not exist.
-    if not config_file.exists():
-        config_file = __create_config(absolute_path)
-
+    config_file = Path(str(os.path.join(path, file_name)))
     return config_file
 
 
-def update_file_list(absolute_path: str = project_root, file_name: str = file_list_config_name):
-    """
-    Updates the configuration file that contains a listing of all available files within the system.
-
-    :param absolute_path: The location the file will be created.
-    :param file_name: The name of the configuration file.
-    """
-    __create_file_list_config(absolute_path, file_name)
-
-
-def __create_config(absolute_path: str, file_name: str = base_config_name, configuration: Dict = None,
-                    host_names: Dict = None) -> str:
+def create_config(path: str = project_root, file_name: str = base_config_name, configuration: Dict = None,
+                  host_names: Dict = None) -> str:
     """
     Creates a configuration file to be used.
 
-    :param absolute_path: The location the file will be created.
+    :param path: The location the file will be created.
     :param file_name: The name of the configuration file.
     :param configuration: The configuration to be entered into the file.
     :param host_names: The default host names to use.
@@ -84,8 +81,8 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
         host_names = default_host_names
 
     # Create the directories if it does not exist.
-    if not Path(absolute_path).exists():
-        os.makedirs(absolute_path)
+    if not Path(path).exists():
+        os.makedirs(path)
     config = configparser.ConfigParser()
     config[CONFIGURATION_SECTION] = configuration
     config[HOST_NAMES_SECTION] = host_names
@@ -94,27 +91,47 @@ def __create_config(absolute_path: str, file_name: str = base_config_name, confi
     config["test_build"] = test_build
 
     # Write the configuration into the file.
-    with open(os.path.join(absolute_path, file_name), "w") as config_file:
+    with open(os.path.join(path, file_name), "w") as config_file:
         config.write(config_file)
-        config_file.close()
 
-    # Create a new file list if it does not exist.
-    file_list_config_file = Path(str(os.path.join(absolute_path, file_list_config_name)))
-    if not file_list_config_file.exists():
-        __create_file_list_config(absolute_path)
-
-    return os.path.join(absolute_path, file_name)
+    return os.path.join(path, file_name)
 
 
-def __create_file_list_config(absolute_path: str, file_name: str = file_list_config_name):
+def create_file_list_config(path: str = project_root, file_name: str = file_list_config_name,
+                            configuration: OrderedDict[str, str] = None):
     """
-    Creates a configuration file that contains a listing of all available files within the system.
+    Creates a configuration file to be used.
 
-    :param absolute_path: The location the file will be created.
+    :param path: The location the file will be created.
+    :param file_name: The name of the configuration file.
+    :param configuration: The configuration to be entered into the file.
+    :return: The newly created configuration file's path.
+    """
+    if configuration is None:
+        configuration = file_list_default
+
+    if not Path(path).exists():
+        os.makedirs(path)
+    config = configparser.ConfigParser()
+    config[CONFIGURATION_SECTION] = configuration
+
+    with open(os.path.join(path, file_name), "w") as config_file:
+        config.write(config_file)
+
+
+def crawl_system(path: str = project_root, file_name: str = file_list_config_name):
+    """
+    Crawls the system using the supplied configuration file as the starting point. It will populate the file with
+    discovered files.
+
+    :param path: The location of the configuration file.
     :param file_name: The name of the configuration file.
     """
     config = configparser.ConfigParser()
-    config[CONFIGURATION_SECTION] = file_list_default
+    config.read(os.path.join(path, file_name))
+    for section in config.sections():
+        if section != CONFIGURATION_SECTION:
+            config.remove_section(section)
 
     # Crawling block.
     # Iterate over a list created out of the base_directory option.
@@ -141,6 +158,5 @@ def __create_file_list_config(absolute_path: str, file_name: str = file_list_con
                                 config.set(option_value, file, nv)
                             else:
                                 config.set(option_value, file, os.path.join(current_path, file))
-    with open(os.path.join(absolute_path, file_name), "w") as config_file:
+    with open(os.path.join(path, file_name), "w") as config_file:
         config.write(config_file)
-        config_file.close()
