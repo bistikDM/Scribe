@@ -11,12 +11,13 @@ base_config_name = "config.ini"
 file_list_config_name = "file-list.ini"
 project_root = str(os.path.join(USER_HOME, "file-picker"))
 base_paths = {file_list_config_name: str(os.path.join(project_root, file_list_config_name))}
+demo = False
 
 file_list_default = collections.OrderedDict({"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
                                              "firmware_directory": "firmware",
                                              "network_directory": "network",
                                              "images_directory": "volume",
-                                             "iso_directory": "iso_images",
+                                             "iso_directory": "ISO_images",
                                              "config_directory": "configs",
                                              "delta_directory:": "deltas",
                                              "tools_directory": "tools"})
@@ -24,19 +25,36 @@ file_list_default = collections.OrderedDict({"base_directory": "file-picker-dev1
 default_host_names = {"firmware": "True",
                       "network": "True",
                       "volume": "True",
-                      "iso_images": "True",
+                      "ISO_images": "True",
                       "configs": "True",
                       "deltas": "True",
                       "tools": "True"}
 
-# TODO: Remove this variable!
-test_build = {"firmware": "test_1.1, test_1.2, test_1.3",
+demo_build = {"firmware": "test_1.1, test_1.2, test_1.3",
               "network": "test_2",
               "volume": "test_3",
-              "iso_images": "test_4",
+              "ISO_images": "test_4",
               "configs": "test_5",
               "deltas": "test_6",
               "tools": "install, test, misc"}
+
+
+def demo_mode():
+    """
+    Configure the script to run in demo mode without interfering with existing .ini files.
+
+    :return:
+    """
+    global base_config_name
+    global file_list_config_name
+    global project_root
+    global demo
+    global base_paths
+    base_config_name = "config-demo.ini"
+    file_list_config_name = "file-list-demo.ini"
+    project_root = str(os.path.join(USER_HOME, "file-picker-demo"))
+    base_paths = {file_list_config_name: str(os.path.join(project_root, file_list_config_name))}
+    demo = True
 
 
 def initialize():
@@ -84,11 +102,13 @@ def create_config(path: str = project_root, file_name: str = base_config_name, c
     if not Path(path).exists():
         os.makedirs(path)
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config[CONFIGURATION_SECTION] = configuration
     config[HOST_NAMES_SECTION] = host_names
 
-    # TODO: Remove this line!
-    config["test_build"] = test_build
+    if demo:
+        config["demo_build"] = demo_build
 
     # Write the configuration into the file.
     with open(os.path.join(path, file_name), "w") as config_file:
@@ -113,6 +133,8 @@ def create_file_list_config(path: str = project_root, file_name: str = file_list
     if not Path(path).exists():
         os.makedirs(path)
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config[CONFIGURATION_SECTION] = configuration
 
     with open(os.path.join(path, file_name), "w") as config_file:
@@ -128,6 +150,8 @@ def crawl_system(path: str = project_root, file_name: str = file_list_config_nam
     :param file_name: The name of the configuration file.
     """
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config.read(os.path.join(path, file_name))
     for section in config.sections():
         if section != CONFIGURATION_SECTION:

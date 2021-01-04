@@ -14,6 +14,8 @@ def get_builds() -> List[str]:
              "CONFIGURATION" and "HOST_NAMES" section.
     """
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config.read(initialization.get_config())
     sections = config.sections()
     sections.remove(initialization.CONFIGURATION_SECTION)
@@ -30,6 +32,8 @@ def get_options(config_file: str, section: str) -> OrderedDict[str, str]:
     :return: An ordered {option: option value}, may raise a configparser.NoSectionError or EmptySectionError.
     """
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config.read(config_file)
     try:
         options = config.options(section)
@@ -53,11 +57,15 @@ def build_paths(section: str) -> Tuple[OrderedDict[str, str], List[Tuple[str, st
              and absolute paths pairings of all files described in the section's option.
     """
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config.read(initialization.get_config())
     subsection = config[section]
     retrieved_files = []
     skipped_options = collections.OrderedDict()
     file_list = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    file_list.optionxform = str
     file_list.read(config.get(initialization.CONFIGURATION_SECTION, initialization.file_list_config_name))
 
     # Iterate through the entries and create a list that contains the absolute paths to all associated files.
@@ -89,6 +97,8 @@ def add_new_build(section: str, options: OrderedDict[str, str]):
     """
     with open(os.path.join(initialization.get_config()), "a") as config_file:
         config = configparser.ConfigParser()
+        # Preserve case-sensitivity.
+        config.optionxform = str
         config.add_section(section)
         config[section] = options
         config.write(config_file)
@@ -101,6 +111,8 @@ def remove_build(build: str):
     :param build: The build to remove from the configuration file.
     """
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config.read(initialization.get_config())
     config.remove_section(build)
     with open(initialization.get_config(), "w") as config_file:
@@ -117,6 +129,8 @@ def edit_build(build: str, new_options: OrderedDict[str, str]):
                         old option's value.
     """
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config.read(initialization.get_config())
     old_options = get_options(initialization.get_config(), build)
     for k, v in old_options.items():
@@ -136,6 +150,8 @@ def convert_to_filenames(config_file: str, entries: List[int], section: str) -> 
     :return: A comma delimited string containing filename(s) retrieved from the configuration file.
     """
     config = configparser.ConfigParser()
+    # Preserve case-sensitivity.
+    config.optionxform = str
     config.read(config_file)
     options = config.options(section)
     files = ""

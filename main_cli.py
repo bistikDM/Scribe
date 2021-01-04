@@ -2,6 +2,8 @@ import collections
 import configparser
 import os
 import shutil
+import sys
+import time
 from pathlib import Path
 from typing import List, Union, OrderedDict
 
@@ -165,7 +167,7 @@ def is_value_valid_int(value: str, maximum: int) -> bool:
         return False
 
 
-def main():
+def main_demo():
     # TESTING
     test_env.create_test_storage_environment()
     initialization.initialize()
@@ -192,7 +194,7 @@ def main():
                 if selected_build:
                     skipped_options, files = build.build_paths(selected_build)
                     if skipped_options:
-                        print("\n*WARNING* File association does not exist in [%s] for the following" 
+                        print("\n*WARNING* File association does not exist in [%s] for the following"
                               " option(s), and has been skipped:" % initialization.file_list_config_name)
                         display_entries(skipped_options)
                         input("Press [Enter] key to acknowledge...")
@@ -274,6 +276,7 @@ def main():
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
                 shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
                 test_env.create_test_storage_environment()
+                initialization.initialize()
             elif selection == "0":
                 break
             else:
@@ -286,5 +289,38 @@ def main():
     shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
 
 
+def main():
+    try:
+        Path(initialization.get_config()).resolve(strict=True)
+    except IOError:
+        print("[%s] not found, creating a new configuration file..." % initialization.base_config_name)
+        print("Using the following values for artifact location (directory name) in repository:")
+        display_entries(initialization.default_host_names)
+        input("Press [Enter] key to acknowledge...")
+        initialization.create_config()
+    try:
+        Path(initialization.get_config(file_name=initialization.file_list_config_name)).resolve(strict=True)
+    except IOError:
+        print("[%s] not found, creating a new configuration file..." % initialization.file_list_config_name)
+        file_list_dict = initialization.file_list_default
+        base_dir = input("Please provide the root level directory name of the repositories separated by a comma: ")
+        file_list_dict["base_directory"] = base_dir
+        initialization.create_file_list_config(configuration=file_list_dict)
+        print("Discovering files, this may take a while...")
+        initialization.crawl_system()
+
+    config_list = [initialization.get_config(),
+                   initialization.get_config(file_name=initialization.file_list_config_name)]
+    print("Configuration files:")
+    display_entries(config_list)
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 2:
+        if sys.argv[1] == "-demo":
+            print("Starting script in demo mode...")
+            time.sleep(3)
+            initialization.demo_mode()
+            main_demo()
+    else:
+        main()
