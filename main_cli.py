@@ -166,6 +166,13 @@ def is_value_valid_int(value: str, maximum: int) -> bool:
         # Definitely not an int.
         return False
 
+def get_destination():
+    destination = input("Please enter the full path of the destination directory: ")
+    if Path(destination).exists():
+        pass
+    else:
+        pass
+
 
 def main_demo():
     # TESTING
@@ -272,9 +279,9 @@ def main_demo():
                 initialization.crawl_system()
             elif selection == "9":
                 shutil.rmtree(initialization.project_root)
-                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
-                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
-                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "Scribe-dev1"))
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "Scribe-dev2"))
+                shutil.rmtree(os.path.join(os.path.abspath(os.sep), "Scribe-dev3"))
                 test_env.create_test_storage_environment()
                 initialization.initialize()
             elif selection == "0":
@@ -284,9 +291,105 @@ def main_demo():
         except ValueError:
             pass
     shutil.rmtree(initialization.project_root)
-    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev1"))
-    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev2"))
-    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "file-picker-dev3"))
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "Scribe-dev1"))
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "Scribe-dev2"))
+    shutil.rmtree(os.path.join(os.path.abspath(os.sep), "Scribe-dev3"))
+
+
+def __select_a_build():
+    selected_build = select_build()
+    if selected_build:
+        skipped_options, files = build.build_paths(selected_build)
+        if skipped_options:
+            print("\n*WARNING* File association does not exist in [%s] for the following"
+                  " option(s), and has been skipped:" % initialization.file_list_config_name)
+            display_entries(skipped_options)
+            input("Press [Enter] key to acknowledge...")
+        destination = str(os.path.join(initialization.project_root, "test-destination"))
+        if not Path(destination).exists():
+            os.makedirs(destination)
+        print("Copying the following files to %s:" % destination)
+        for file in files:
+            print("\t %s" % file[1])
+        copy.copy_files(files, destination)
+
+
+def __remove_a_build():
+    selected_build = select_build()
+    if selected_build:
+        confirm = input(
+            "Removing [%s] from the configuration file, enter the build name exactly to confirm: " %
+            selected_build)
+        if confirm.strip() == selected_build:
+            build.remove_build(selected_build)
+            print("Build [%s] has been removed from the configuration." % selected_build)
+        else:
+            print("Aborting operation.")
+
+
+def __add_a_build():
+    sections = build.get_builds()
+    while True:
+        build_title = input("Please enter a build name: ").strip()
+        if build_title not in sections:
+            break
+        print("The build name already exist!")
+    build_options = get_new_build_option()
+    print("Saving [%s] into the config file..." % build_title)
+    build.add_new_build(build_title, build_options)
+    print("New build configuration saved.")
+
+
+def __edit_a_build():
+    selected_build = select_build()
+    if selected_build:
+        confirm = input("Editing build [%s], enter the build name exactly to confirm: " % selected_build)
+        if confirm.strip() == selected_build:
+            print("Leave blank to use current value(s), otherwise enter new values...")
+            new_value = get_new_build_option()
+            build.edit_build(selected_build, new_value)
+            print("Build [%s]'s options changed!" % selected_build)
+    else:
+        print("Aborting operation.")
+
+
+def __cherry_pick():
+    selected_build = select_build()
+    if selected_build:
+        build_options = build.get_options(initialization.get_config(), selected_build)
+        display_entries(build_options, numbered=True)
+        index = None
+        while not index:
+            index = input("Enter an option number: ")
+            if not is_value_valid_int(index, len(build_options)):
+                index = None
+                print("Invalid selection!")
+        selection = list(build_options.keys())[int(index) - 1]
+        print("\nOption [%s] selected:" % selection)
+        skipped_options, files = build.build_paths(selected_build)
+        if selection not in skipped_options:
+            filtered_files = list(filter(lambda x: x[0] == selection, files))
+            destination = str(os.path.join(initialization.project_root, "test-destination"))
+            if not Path(destination).exists():
+                os.makedirs(destination)
+            print("Copying the following files to %s:" % destination)
+            for file in filtered_files:
+                print("\t %s" % file[1])
+            copy.copy_files(filtered_files, destination)
+        else:
+            print("Could not located the file associated with the selected option [%s]..." % selection)
+
+
+def get_selection(selection: int):
+    switch = {
+        1: __select_a_build,
+        2: __remove_a_build,
+        3: __add_a_build,
+        4: __edit_a_build,
+        5: __cherry_pick,
+        6: initialization.crawl_system
+    }
+    switch.get(selection, lambda: print("Invalid selection!"))()
 
 
 def main():
@@ -313,6 +416,22 @@ def main():
                    initialization.get_config(file_name=initialization.file_list_config_name)]
     print("Configuration files:")
     display_entries(config_list)
+
+    while True:
+        print("***MAIN MENU***")
+        print("\t1). Select a build.")
+        print("\t2). Remove a build.")
+        print("\t3). Add a build.")
+        print("\t4). Edit a build.")
+        print("\t5). Cherry-pick from build.")
+        print("\t6). Rebuild file-list.ini.")
+        print("\t0). Exit.")
+        try:
+            selection = int(input("Enter a number: "))
+            get_selection(selection)
+        except ValueError:
+            print("Please enter a number!")
+            pass
 
 
 if __name__ == "__main__":
