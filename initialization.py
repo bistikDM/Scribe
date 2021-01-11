@@ -9,11 +9,11 @@ CONFIGURATION_SECTION = "CONFIGURATION"
 HOST_NAMES_SECTION = "HOST_NAMES"
 base_config_name = "config.ini"
 file_list_config_name = "file-list.ini"
-project_root = str(os.path.join(USER_HOME, "file-picker"))
+project_root = str(os.path.join(USER_HOME, "Scribe"))
 base_paths = {file_list_config_name: str(os.path.join(project_root, file_list_config_name))}
 demo = False
 
-file_list_default = collections.OrderedDict({"base_directory": "file-picker-dev1, file-picker-dev2, file-picker-dev3",
+file_list_default = collections.OrderedDict({"base_directory": "Scribe-dev1, Scribe-dev2, Scribe-dev3",
                                              "firmware_directory": "firmware",
                                              "network_directory": "network",
                                              "images_directory": "volume",
@@ -52,7 +52,7 @@ def demo_mode():
     global base_paths
     base_config_name = "config-demo.ini"
     file_list_config_name = "file-list-demo.ini"
-    project_root = str(os.path.join(USER_HOME, "file-picker-demo"))
+    project_root = str(os.path.join(USER_HOME, "Scribe-demo"))
     base_paths = {file_list_config_name: str(os.path.join(project_root, file_list_config_name))}
     demo = True
 
@@ -68,7 +68,7 @@ def initialize():
     crawl_system()
 
 
-def get_config(path: str = project_root, file_name: str = base_config_name) -> str:
+def get_config(path: str = None, file_name: str = None) -> str:
     """
     Retrieves the configuration file path needed.
 
@@ -76,11 +76,15 @@ def get_config(path: str = project_root, file_name: str = base_config_name) -> s
     :param file_name: The name of the configuration file.
     :return: The configuration file path.
     """
+    if path is None:
+        path = project_root
+    if file_name is None:
+        file_name = base_config_name
     config_file = Path(str(os.path.join(path, file_name)))
     return config_file
 
 
-def create_config(path: str = project_root, file_name: str = base_config_name, configuration: Dict = None,
+def create_config(path: str = None, file_name: str = None, configuration: Dict = None,
                   host_names: Dict = None) -> str:
     """
     Creates a configuration file to be used.
@@ -91,10 +95,13 @@ def create_config(path: str = project_root, file_name: str = base_config_name, c
     :param host_names: The default host names to use.
     :return: The newly created configuration file's path.
     """
+    if path is None:
+        path = project_root
+    if file_name is None:
+        file_name = base_config_name
     # Use default dictionary if none is given.
     if configuration is None:
         configuration = base_paths
-
     if host_names is None:
         host_names = default_host_names
 
@@ -117,7 +124,7 @@ def create_config(path: str = project_root, file_name: str = base_config_name, c
     return os.path.join(path, file_name)
 
 
-def create_file_list_config(path: str = project_root, file_name: str = file_list_config_name,
+def create_file_list_config(path: str = None, file_name: str = None,
                             configuration: OrderedDict[str, str] = None):
     """
     Creates a configuration file to be used.
@@ -127,6 +134,10 @@ def create_file_list_config(path: str = project_root, file_name: str = file_list
     :param configuration: The configuration to be entered into the file.
     :return: The newly created configuration file's path.
     """
+    if path is None:
+        path = project_root
+    if file_name is None:
+        file_name = file_list_config_name
     if configuration is None:
         configuration = file_list_default
 
@@ -141,7 +152,7 @@ def create_file_list_config(path: str = project_root, file_name: str = file_list
         config.write(config_file)
 
 
-def crawl_system(path: str = project_root, file_name: str = file_list_config_name):
+def crawl_system(path: str = None, file_name: str = None):
     """
     Crawls the system using the supplied configuration file as the starting point. It will populate the file with
     discovered files.
@@ -149,6 +160,10 @@ def crawl_system(path: str = project_root, file_name: str = file_list_config_nam
     :param path: The location of the configuration file.
     :param file_name: The name of the configuration file.
     """
+    if path is None:
+        path = project_root
+    if file_name is None:
+        file_name = file_list_config_name
     config = configparser.ConfigParser()
     # Preserve case-sensitivity.
     config.optionxform = str
@@ -175,12 +190,13 @@ def crawl_system(path: str = project_root, file_name: str = file_list_config_nam
                             config.add_section(option_value)
                         # Add each file as the option's name and the file's path as the option's value.
                         for file in files:
-                            if config.has_option(option_value, file):
+                            file_no_ext = os.path.splitext(file)[0]
+                            if config.has_option(option_value, file_no_ext):
                                 # If there are multiple files with the same name, create a csv for the value.
-                                ov = config.get(option_value, file)
+                                ov = config.get(option_value, file_no_ext)
                                 nv = ov + ", " + os.path.join(current_path, file)
-                                config.set(option_value, file, nv)
+                                config.set(option_value, file_no_ext, nv)
                             else:
-                                config.set(option_value, file, os.path.join(current_path, file))
+                                config.set(option_value, file_no_ext, os.path.join(current_path, file))
     with open(os.path.join(path, file_name), "w") as config_file:
         config.write(config_file)
